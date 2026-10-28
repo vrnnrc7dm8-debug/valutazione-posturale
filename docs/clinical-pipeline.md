@@ -121,3 +121,36 @@ restano visibili come misure. Non vengono convertite automaticamente in una
 rotazione assiale DX/SX: una nuova osservazione rotation richiede che l'operatore
 specifichi esplicitamente la direzione prima della conferma. I valori storici
 rimangono leggibili e non vengono riscritti nell'archivio.
+
+## Inferenza Myers per operatore e regione
+
+Il resolver seleziona una sola regola: alterazione, operatore, direzione, regione,
+convessità e piano ne determinano la specificità. Una regola specifica non viene
+sommata alla regola globale o al fallback. Le compatibilità piano/operatore/lato
+riusano `MYOFASCIAL_CLINICAL_DATABASE`. Shift cervicale DX privilegia la Laterale
+destra; rotazione cervicale SX la Spirale sinistra. Bend e convessità rimangono
+campi distinti. In assenza di convessità esplicita, l'opposto del bend può essere
+mostrato come proposta derivata, senza usarlo come conferma della curva.
+
+Le sette regioni rachidee, inclusa la sacrale, determinano la distribuzione dei
+tessuti. `tissueDistricts.ts` aggiunge metadati anatomici ai tessuti già presenti,
+senza duplicare le appartenenze alle linee. Le ipotesi di linea sono separate dai
+tessuti supportati: il singolo pattern genera soltanto tessuti locali. Un tessuto
+adiacente o remoto richiede un pattern indipendente nel proprio distretto, sulla
+stessa linea e con lato compatibile. Osservazioni condivise non costituiscono
+corroborazione. Il supporto conserva origine, regione, prossimità e confidenza;
+le ripetizioni non aumentano artificialmente la confidenza.
+
+La confidenza esprime la qualità interna dell'evidenza (specificità, direzione,
+regione, misura, conferma e riscontri indipendenti), non la severità posturale né
+una probabilità clinica validata. Una componente cinematica da sola non dimostra
+accorciamento o allungamento muscolare: nelle nuove evidenze queste dimensioni
+restano sconosciute senza un operatore esplicito di fissazione. I campi legacy
+restano leggibili per compatibilità. UI, report e testo esportato espongono le
+origini delle linee e dei tessuti; i report storici privi delle nuove inferenze
+usano la rappresentazione precedente. Tutti i nuovi campi persistiti sono opzionali.
+
+La suite `myersRegionalEvidence.test.ts` copre il caso cervicale shift DX +
+rotation SX + bend lombosacrale SX/convessità DX, priorità delle regole, regioni,
+filtro locale/remoto, corroborazione indipendente, assenza di duplicati,
+confidenza indipendente dalla severità e riapertura assessment-v2.

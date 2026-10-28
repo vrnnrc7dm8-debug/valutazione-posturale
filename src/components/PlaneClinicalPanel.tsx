@@ -1,16 +1,14 @@
 import { AutomaticObservationsPanel } from './AutomaticObservationsPanel'
 import { isReportEligibleLandmark } from '@/utils/landmarkValidation'
 import { AlterationSelector } from './AlterationSelector'
-import { runClinicalPipeline, formatPattern, formatTissueState, patternSelection, applyClinicalEdit } from '@/utils/clinicalPipeline'
+import { runClinicalPipeline, formatPattern, formatTissueState, patternSelection, applyClinicalEdit, formatMyersEvidence, formatTissueSupport } from '@/utils/clinicalPipeline'
 import { formatAlterationInstanceSummary } from '@/data/directionalDescriptors'
 import { getPlaneConfig } from '@/data/planes'
-import { MYOFASCIAL_LINES } from '@/data/myofascialLines'
 import type { AnatomicalPlane, PlaneAssessment, PlacedLandmark } from '@/types'
 import {
   computeAutoMeasurements,
   type AutoMeasurement,
 } from '@/utils/biomechanicsEngine'
-import { analyzeMyofascialLinesForPlane } from '@/utils/myersEngine'
 import { scorePlaneAssessment } from '@/utils/postureScoring'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -37,7 +35,6 @@ export function PlaneClinicalPanel({
   const pipeline = runClinicalPipeline([assessment], autoMs)
   const consolidated = pipeline.consolidatedPlanes[0]
   const score = scorePlaneAssessment(consolidated, plane === 'frontale_anteriore' ? [] : autoMs)
-  const myers = analyzeMyofascialLinesForPlane(plane, consolidated.alterations)
 
   return (
     <Card className="border-clinical-200 bg-clinical-50/30">
@@ -102,20 +99,10 @@ export function PlaneClinicalPanel({
           onDecision={observation => onAssessmentChange({ ...assessment,
             observations: [...(assessment.observations ?? []).filter(o => o.id !== observation.id), observation],
           })} />}
-        {myers.length > 0 && (
-          <div>
-            <p className="mb-1 text-xs font-semibold text-clinical-800">
-              Linee Myers ipotizzate (piano)
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {myers.slice(0, 4).map((m) => (
-                <Badge key={m.lineId} variant={m.severity}>
-                  {MYOFASCIAL_LINES[m.lineId].name.split(' ').slice(-2).join(' ')}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
+        {pipeline.inferences.some(i => i.lines.length) && <div>
+          <p className="text-xs font-semibold">Linee Myers ipotizzate e origine</p>
+          <ul>{formatMyersEvidence(pipeline.patterns, pipeline.inferences).map((text, i) => <li key={i} className="my-1 text-xs">{text}</li>)}</ul>
+        </div>}
 
         <div>
           <p className="font-semibold">Pattern consolidati</p>
@@ -130,7 +117,7 @@ export function PlaneClinicalPanel({
               onAssessmentChange({ ...assessment, alterations: assessment.alterations.filter(a => !ids.has(a.instanceId)), observations: assessment.observations?.filter(o => !ids.has(o.id)) })
             }} />}
           <p className="mt-2 font-semibold">Tessuti correlati (ipotesi)</p>
-          {pipeline.tissues.map(t => <p key={`${t.tissueId}:${t.side}`} className="text-xs">{formatTissueState(t)}</p>)}
+          {pipeline.tissues.map(t => <div key={`${t.tissueId}:${t.side}`} className="my-2 text-xs"><p>{formatTissueState(t)}</p>{formatTissueSupport(t, pipeline.patterns).map((text, i) => <p key={i}>{text}</p>)}</div>)}
         </div>
 
         {assessment.alterations.length > 0 && (

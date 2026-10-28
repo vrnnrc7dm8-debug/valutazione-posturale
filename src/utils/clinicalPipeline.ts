@@ -4,7 +4,8 @@ import type { AutoMeasurement } from './biomechanicsEngine'
 import type { AlterationSelection, ClinicalObservation, PosturalPattern, TissueFunctionalState, PlaneAssessment, AlterationMyersInference } from '@/types'
 import { getAlterationsForPlane } from '@/data/planes'
 import { inferMyersForAlteration } from './myersEngine'
-import { resolveTissueFunctionalState } from '@/data/myofascialLines'
+import { isSpinalPhenomenon } from '@/data/tissueDistricts'
+import { independentPatterns, supportedTissueEvidence, mergeTissueSupport } from './tissueEvidence'
 
 /** Alias clinici, separati dagli alias di migrazione per non riscrivere l'archivio. */
 export function canonicalPhenomenon(id: string): string {
@@ -23,11 +24,11 @@ export function observationsFromAssessments(planes: PlaneAssessment[]): Clinical
     const region = a.alterationId.match(/^deviazione_rachidea_(cervicale|toracica|lombare|lombosacrale)$/)?.[1] as NonNullable<PosturalPattern['anatomicalDetails']>['region']
     return {
       id: a.instanceId, plane: pa.plane, district: a.district ?? definition?.district ?? 'globale',
-      phenomenon, descriptor: a.descriptor, side: a.side, direction: a.descriptor === 'compenso' ? undefined : a.direction, severity: a.severity,
+      phenomenon, descriptor: a.descriptor, side: isSpinalPhenomenon(a.alterationId) ? undefined : a.side, direction: a.descriptor === 'compenso' ? undefined : a.direction, severity: a.severity,
       quantitative: a.quantitative, source: a.source === 'manual' || !a.source ? 'manual' : 'automatic_suggestion',
       sourceIds: [a.suggestionKey ?? a.instanceId], status: a.status ?? (a.source === 'suggested' ? 'suggested' : 'confirmed'),
       anatomicalDetails: phenomenon === 'deviazione_rachidea'
-        ? { region: region ?? 'indeterminata', convexity: 'indeterminata', ...a.anatomicalDetails } : a.anatomicalDetails,
+        ? { region: region ?? 'indeterminata', convexity: 'indeterminata', ...a.anatomicalDetails, ...(a.descriptor === 'bend' && (!a.anatomicalDetails?.convexity || a.anatomicalDetails.convexity === 'indeterminata') && (a.direction === 'dx' || a.direction === 'sx') ? { proposedConvexity: a.direction === 'sx' ? 'dx' as const : 'sx' as const } : {}) } : a.anatomicalDetails,
       patternId: a.patternId, notes: a.note,
     } satisfies ClinicalObservation
   }))
@@ -35,7 +36,8 @@ export function observationsFromAssessments(planes: PlaneAssessment[]): Clinical
 
 export function consolidateObservations(observations: ClinicalObservation[]): PosturalPattern[] {
   const groups = new Map<string, ClinicalObservation[]>()
-  for (const o of observations) {
+  for (const observation of observations) {
+    const o = isSpinalPhenomenon(observation.phenomenon) ? { ...observation, side: undefined } : observation
     if (o.status === 'excluded' || o.status === 'suggested') continue
     const details = o.anatomicalDetails
     const phenomenon = canonicalPhenomenon(o.phenomenon)
@@ -52,6 +54,7 @@ export function consolidateObservations(observations: ClinicalObservation[]): Po
     return {
       id: `pattern:${key}`, plane: selected.plane, district: selected.district,
       phenomenon: canonicalPhenomenon(selected.phenomenon), descriptor: observationDescriptor(selected.phenomenon, selected.plane, selected.descriptor), side: selected.side,
+      quantitative: selected.quantitative,
       direction: selected.descriptor === 'compenso' ? undefined : selected.direction, severity: selected.severity,
       observationIds: members.map(o => o.id), anatomicalDetails: selected.anatomicalDetails,
       source: sources.size > 1 ? 'mixed' : selected.source === 'manual' ? 'manual' : 'derived',
@@ -69,15 +72,24 @@ export function patternSelection(p: PosturalPattern): AlterationSelection {
     : p.phenomenon === 'deviazione_rachidea' ? 'scoliosi_funzionale' : p.phenomenon
   return {
     instanceId: p.id, alterationId, descriptor: observationDescriptor(p.phenomenon, p.plane, p.descriptor),
-    side: p.side, direction: p.descriptor === 'compenso' ? undefined : p.direction, severity: p.severity ?? 'lieve',
+    quantitative: p.quantitative,
+    side: isSpinalPhenomenon(p.phenomenon) ? undefined : p.side, direction: p.descriptor === 'compenso' ? undefined : p.direction, severity: p.severity ?? 'lieve',
     source: p.source === 'manual' ? 'manual' : 'confirmed', status: p.status,
     district: p.district, anatomicalDetails: p.anatomicalDetails, note: p.notes,
   }
 }
 
 export function inferMyersFromPatterns(patterns: PosturalPattern[]): AlterationMyersInference[] {
-  return patterns.filter(p => p.status !== 'excluded' && p.status !== 'suggested')
-    .map(p => inferMyersForAlteration(p.plane, patternSelection(p)))
+  const active = patterns.filter(p => p.status !== 'excluded' && p.status !== 'suggested')
+  const inferences = active.map(p => inferMyersForAlteration(p.plane, patternSelection(p)))
+  return inferences.map(inference => ({ ...inference, lines: inference.lines.map(line => {
+    const pattern = active.find(p => p.id === inference.instanceId)!
+    const corroboratedBy = inferences.filter(other => {
+      const otherPattern = active.find(p => p.id === other.instanceId)!
+      return independentPatterns(pattern, otherPattern) && other.lines.some(l => l.lineId === line.lineId && (l.side === line.side || l.side === 'bilaterale' || line.side === 'bilaterale'))
+    }).map(i => i.instanceId)
+    return { ...line, corroboratedBy, confidence: Math.min(0.85, Math.round((line.confidence + (corroboratedBy.length ? 0.04 : 0)) * 100) / 100) }
+  }) }))
 }
 
 export function consolidateTissueEvidence(evidence: TissueFunctionalState[]): TissueFunctionalState[] {
@@ -99,7 +111,8 @@ export function consolidateTissueEvidence(evidence: TissueFunctionalState[]): Ti
       evidence: unique(items.flatMap(e => e.evidence)), observationIds: unique(items.flatMap(e => e.observationIds)),
       sourceLineIds: unique(items.flatMap(e => e.sourceLineIds)),
       // Le fonti correlate non sono prove statisticamente indipendenti.
-      confidence: Math.max(...items.map(e => e.confidence)), conflict,
+      confidence: Math.min(0.9, Math.max(...items.map(e => e.confidence)) + (items.some(e => e.support?.some(s => !!s.corroboratingPatternIds?.length)) ? 0.04 : 0)), conflict,
+      support: mergeTissueSupport(items),
       conflictingEvidence: conflict ? unique(items.flatMap(e => [...e.evidence, ...e.conflictingEvidence])) : [],
     }
   })
@@ -111,29 +124,17 @@ export function runClinicalPipeline(planes: PlaneAssessment[], measurements: Aut
   ], observationsFromAutoMeasurements(measurements))
   const patterns = consolidateObservations(observations)
   const inferences = inferMyersFromPatterns(patterns)
-  const tissues = consolidateTissueEvidence(inferences.flatMap(inference => {
-    const pattern = patterns.find(p => p.id === inference.instanceId)!
-    return inference.lines.flatMap(line => line.tissues.map(t => {
-      const state = resolveTissueFunctionalState(t.name, line.score, undefined, inference.alterationId, t.functionalState)
-      return {
-        tissueId: t.name.trim().toLowerCase(), name: t.name, side: t.side,
-        lengthState: state === 'accorciamento' ? 'shortened' : state === 'allungamento' ? 'lengthened' : 'unknown',
-        mobilityState: state === 'fissazione' ? 'fixed' : 'unknown',
-        functionalRole: state === 'compenso' ? 'compensatory' : 'unknown',
-        evidence: [pattern.id], observationIds: pattern.observationIds,
-        sourceLineIds: [line.lineId], confidence: t.confidence, conflict: false, conflictingEvidence: [],
-      } satisfies TissueFunctionalState
-    }))
-  }))
+  const tissues = consolidateTissueEvidence(supportedTissueEvidence(patterns, inferences))
   const consolidatedPlanes = planes.map(pa => ({ plane: pa.plane, alterations: patterns.filter(p => p.plane === pa.plane).map(patternSelection) }))
   return { observations, patterns, inferences, tissues, consolidatedPlanes }
 }
 
 export function formatPattern(p: PosturalPattern): string {
   const d = p.anatomicalDetails
-  const label = ['tilt_capo', 'shift_capo', 'rotazione_capo'].includes(p.phenomenon) ? 'Capo' : p.phenomenon === 'deviazione_rachidea' && d?.region === 'cervicale' ? 'Deviazione cervicale' : p.phenomenon.replaceAll('_', ' ')
-  return [`${label} — ${formatOperatorDirection(observationDescriptor(p.phenomenon, p.plane, p.descriptor), p.direction)}`, p.side, p.severity,
-    d && `Regione: ${d.region ?? 'indeterminata'} · Convessità: ${d.convexity ?? 'indeterminata'}`,
+  const label = ['tilt_capo', 'shift_capo', 'rotazione_capo'].includes(p.phenomenon) ? 'Capo' : p.phenomenon === 'deviazione_rachidea' && d?.region && d.region !== 'indeterminata' ? `Deviazione ${d.region === 'cervicale' ? 'cervicale' : `rachidea ${d.region.replaceAll('_', '-')}`}` : p.phenomenon.replaceAll('_', ' ')
+  return [`${label} — ${formatOperatorDirection(observationDescriptor(p.phenomenon, p.plane, p.descriptor), p.direction)}`, isSpinalPhenomenon(p.phenomenon) ? undefined : p.side, p.severity,
+    d && `Regione: ${d.region ?? 'indeterminata'} · Convessità: ${d.convexity === 'dx' ? 'DX' : d.convexity === 'sx' ? 'SX' : 'indeterminata'}${d.convexitySource === 'derived' ? ' (derivata)' : ''}`,
+    d?.proposedConvexity && (!d.convexity || d.convexity === 'indeterminata') && `Convessità suggerita ${d.proposedConvexity.toUpperCase()} (derivata, da confermare)`,
     d?.apex && `Apice: ${d.apex}`, d?.level && `Livello: ${d.level}`,
     d?.startLevel && `Inizio: ${d.startLevel}`, d?.endLevel && `Fine: ${d.endLevel}`, p.notes].filter(Boolean).join(' · ')
 }
@@ -142,7 +143,7 @@ export function formatTissueState(t: TissueFunctionalState): string {
   const length = { shortened: 'accorciamento', lengthened: 'allungamento', neutral: 'neutro', unknown: 'indeterminato' }
   const mobility = { fixed: 'fissazione', restricted: 'possibile restrizione', mobile: 'mobile', unknown: 'indeterminata' }
   const role = { primary: 'primario', compensatory: 'compensatorio', associated: 'associato', unknown: 'indeterminato' }
-  return `${t.name} ${t.side} · Lunghezza: ${length[t.lengthState]}${t.conflict ? ' — evidenza discordante' : ''} · Mobilità: ${mobility[t.mobilityState]} · Ruolo: ${role[t.functionalRole]} · ${t.observationIds.length} osservazioni · conf. ${Math.round(t.confidence * 100)}%`
+  return `${t.name} ${t.side} · Lunghezza: ${length[t.lengthState]}${t.conflict ? ' — evidenza discordante' : ''} · Mobilità: ${mobility[t.mobilityState]} · Ruolo: ${role[t.functionalRole]} · Distretto: ${[...new Set(t.support?.map(s => s.proximity === 'local' ? 'locale' : s.proximity === 'adjacent' ? 'adiacente corroborato' : 'remoto corroborato') ?? ['non specificato'])].join(', ')} · ${t.observationIds.length} osservazioni · conf. ${Math.round(t.confidence * 100)}%`
 }
 
 /** Conserva l'identità del suggerimento anche dopo una correzione del lato. */
@@ -157,6 +158,21 @@ export function applyClinicalEdit(a: AlterationSelection, patch: Partial<Alterat
 /** Mantiene le osservazioni sorgente, evitando di ripetere gli alias nella presentazione. */
 export function observationSummaries(observations: ClinicalObservation[]): string[] {
   return [...new Set(observations.filter(o => o.status !== 'excluded' && o.status !== 'suggested').map(o =>
-    `${o.plane.replaceAll('_', ' ')}: ${canonicalPhenomenon(o.phenomenon).replaceAll('_', ' ')} · ${o.side ?? 'lato indeterminato'} · ${formatOperatorDirection(observationDescriptor(o.phenomenon, o.plane, o.descriptor), o.direction)} · ${o.severity ?? 'grado indeterminato'}${o.quantitative ? ` · ${o.quantitative.value} ${o.quantitative.unit}` : ''}`,
+    `${o.plane.replaceAll('_', ' ')}: ${canonicalPhenomenon(o.phenomenon).replaceAll('_', ' ')} · ${isSpinalPhenomenon(o.phenomenon) ? 'rachide' : o.side ?? 'lato indeterminato'} · ${formatOperatorDirection(observationDescriptor(o.phenomenon, o.plane, o.descriptor), o.direction)} · ${o.severity ?? 'grado indeterminato'}${o.quantitative ? ` · ${o.quantitative.value} ${o.quantitative.unit}` : ''}`,
   ))]
+}
+
+
+export function formatMyersEvidence(patterns: PosturalPattern[], inferences: AlterationMyersInference[]): string[] {
+  return inferences.flatMap(inference => {
+    const pattern = patterns.find(p => p.id === inference.instanceId)
+    return inference.lines.map(line => `${line.lineName} · Origine: ${pattern ? formatPattern(pattern) : inference.alterationId} · Lato linea: ${line.side} · Confidenza: ${Math.round(line.confidence * 100)}%${line.corroboratedBy?.length ? ' · riscontri indipendenti concordanti' : ' · singolo pattern'}`)
+  })
+}
+
+export function formatTissueSupport(tissue: TissueFunctionalState, patterns: PosturalPattern[]): string[] {
+  return (tissue.support ?? []).map(s => {
+    const pattern = patterns.find(p => p.id === s.patternId)
+    return `Origine: ${pattern ? formatPattern(pattern) : s.patternId} · Regione: ${s.region} · Distretto: ${s.proximity === 'local' ? 'locale' : s.proximity === 'adjacent' ? 'adiacente corroborato' : 'remoto corroborato'} · Confidenza fonte: ${Math.round(s.confidence * 100)}%`
+  })
 }

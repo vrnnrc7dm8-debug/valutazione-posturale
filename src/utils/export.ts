@@ -1,4 +1,4 @@
-import { formatPattern, formatTissueState, observationSummaries } from './clinicalPipeline'
+import { formatPattern, formatTissueState, observationSummaries, formatMyersEvidence, formatTissueSupport } from './clinicalPipeline'
 import { isReportStale } from '@/utils/reportGeneration'
 import { anthropometryReportLines } from '@/utils/anthropometry'
 import { formatQuantitativeValue } from '@/data/clinicalThresholds'
@@ -133,10 +133,10 @@ export function buildTextReportLines(assessment: Assessment): string[] | null {
     header.push('B. OSSERVAZIONI POSTURALI')
     header.push(...observationSummaries(pipeline.observations))
     header.push('C. PATTERN CONSOLIDATI', ...pipeline.patterns.map(formatPattern))
-    header.push('D. IPOTESI MYOFASCIALI', ...report.alteredMeridians.map(m => `${MYOFASCIAL_LINES[m.lineId].name} (${m.prevalentSide})`))
+    header.push('D. IPOTESI MYOFASCIALI', ...(pipeline.inferences ? formatMyersEvidence(pipeline.patterns, pipeline.inferences) : report.alteredMeridians.map(m => `${MYOFASCIAL_LINES[m.lineId].name} (${m.prevalentSide})`)))
     header.push('E. TESSUTI CORRELATI')
     for (const tissue of pipeline.tissues) {
-      header.push(formatTissueState(tissue), `Linee: ${tissue.sourceLineIds.map(id => MYOFASCIAL_LINES[id].name).join(', ')}`,
+      header.push(formatTissueState(tissue), ...formatTissueSupport(tissue, pipeline.patterns), `Linee: ${tissue.sourceLineIds.map(id => MYOFASCIAL_LINES[id].name).join(', ')}`,
         `Evidenze: ${tissue.evidence.map(id => { const p = pipeline.patterns.find(p => p.id === id); return p ? formatPattern(p) : id }).join('; ')}`)
     }
     header.push(report.priorityEvaluable === false ? 'Priorità: NON VALUTABILE' : `Priorità: ${report.therapeuticPriority}`, report.disclaimer)

@@ -344,6 +344,8 @@ export interface MyofascialLineResult {
 
 /** Coinvolgimento muscolare inferito per singola alterazione (Step 6). */
 export interface TissueInvolvement {
+  region?: string
+  proximity?: 'local' | 'adjacent' | 'remote'
   name: string
   side: Side
   functionalState: TissueState
@@ -352,6 +354,11 @@ export interface TissueInvolvement {
 
 /** Linea Myers inferita per una singola istanza di alterazione. */
 export interface AlterationLineInference {
+  corroboratedBy?: string[]
+  ruleSpecificity?: number
+  sourceDescriptor?: Descriptor
+  sourceDirection?: ClinicalDirection
+  sourceRegion?: string
   lineId: MyofascialLineId
   lineName: string
   side: Side
@@ -434,6 +441,7 @@ export interface PlaneReportSection {
 
 export interface ClinicalReportData {
   clinicalPipeline?: {
+    inferences?: AlterationMyersInference[]
     observations: import('./clinical').ClinicalObservation[]
     patterns: import('./clinical').PosturalPattern[]
     tissues: import('./clinical').TissueFunctionalState[]

@@ -69,12 +69,14 @@ export interface ClinicalAlterationMeta {
 import type { AnatomicalPlane, Descriptor, Severity, Side, MyofascialLineId } from './index'
 
 export type ClinicalStatus = 'suggested' | 'confirmed' | 'modified' | 'excluded'
-export type SpinalRegion = 'cervicale' | 'cervico_dorsale' | 'toracica' | 'toraco_lombare' | 'lombare' | 'lombosacrale' | 'globale' | 'indeterminata'
+export type SpinalRegion = 'cervicale' | 'cervico_dorsale' | 'toracica' | 'toraco_lombare' | 'lombare' | 'lombosacrale' | 'sacrale' | 'globale' | 'indeterminata'
 export interface AnatomicalDetails {
   region?: SpinalRegion
   level?: string
   apex?: string
   convexity?: 'dx' | 'sx' | 'indeterminata'
+  convexitySource?: 'manual' | 'derived'
+  proposedConvexity?: 'dx' | 'sx'
   startLevel?: string
   endLevel?: string
 }
@@ -105,6 +107,7 @@ export interface PosturalPattern {
   side?: Side
   direction?: ClinicalDirection
   severity?: Severity
+  quantitative?: QuantitativeValue
   observationIds: string[]
   anatomicalDetails?: AnatomicalDetails
   source: 'derived' | 'manual' | 'mixed'
@@ -113,6 +116,7 @@ export interface PosturalPattern {
   notes?: string
 }
 export interface TissueFunctionalState {
+  support?: { patternId: string; region: string; proximity: 'local' | 'adjacent' | 'remote'; confidence: number; corroboratingPatternIds?: string[] }[]
   tissueId: string
   name: string
   side: Side

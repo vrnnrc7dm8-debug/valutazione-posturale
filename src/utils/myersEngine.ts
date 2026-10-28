@@ -1,4 +1,6 @@
-import { MYOFASCIAL_LINES, inferTissueState } from '@/data/myofascialLines'
+import { alterationRegion, tissueProximity, isSpinalPhenomenon } from '@/data/tissueDistricts'
+import type { ClinicalDirection, SpinalRegion } from '@/types'
+import { MYOFASCIAL_LINES, inferTissueState, resolveLinesForOperator, type ClinicalObservationPlane, type FunctionalMovementOperator } from '@/data/myofascialLines'
 import { resolveAlterationId } from '@/data/alterationAliases'
 import { effectiveSideForMyers } from '@/data/directionalDescriptors'
 import { getAlterationLabel, getPlaneConfig } from '@/data/planes'
@@ -18,7 +20,11 @@ import type {
 
 type LineWeight = Partial<Record<MyofascialLineId, number>>
 
-interface AlterationRule {
+export interface AlterationRule {
+  descriptors?: Descriptor[]
+  directions?: ClinicalDirection[]
+  regions?: SpinalRegion[]
+  convexities?: ('dx' | 'sx')[]
   alterationIds: string[]
   lines: LineWeight
   planes?: AnatomicalPlane[]
@@ -142,21 +148,83 @@ function scoreToSeverity(score: number): Severity {
   return 'lieve'
 }
 
-function applySideBias(lineId: MyofascialLineId, side?: Side): MyofascialLineId {
-  if (!side || side === 'bilaterale') return lineId
-  if (lineId === 'lateral_right' && side === 'sinistro') return 'lateral_left'
-  if (lineId === 'lateral_left' && side === 'destro') return 'lateral_right'
-  if (lineId === 'spiral_right' && side === 'sinistro') return 'spiral_left'
-  if (lineId === 'spiral_left' && side === 'destro') return 'spiral_right'
-  return lineId
+const OBSERVATION_PLANES: Record<AnatomicalPlane, ClinicalObservationPlane> = {
+  frontale_anteriore: 'front_anterior', frontale_posteriore: 'front_posterior',
+  sagittale_destro: 'sagittal', sagittale_sinistro: 'sagittal', trasverso: 'transverse',
 }
 
-function resolveRules(resolvedId: string, plane: AnatomicalPlane): AlterationRule[] {
-  return GLOBAL_RULES.filter(
-    (r) =>
-      r.alterationIds.includes(resolvedId) &&
-      (!r.planes || r.planes.includes(plane)),
-  )
+/** Tissue side is an inference output, not a side added to the spinal observation. */
+function inferenceSide(a: AlterationSelection): Side | undefined {
+  if (isSpinalPhenomenon(a.alterationId)) {
+    const convexity = a.anatomicalDetails?.convexity
+    if (a.descriptor === 'bend' && (convexity === 'dx' || convexity === 'sx')) return convexity === 'dx' ? 'destro' : 'sinistro'
+    if (a.direction === 'dx' || a.direction === 'rotazione_dx') return 'destro'
+    if (a.direction === 'sx' || a.direction === 'rotazione_sx') return 'sinistro'
+    return undefined
+  }
+  return effectiveSideForMyers(a)
+}
+
+function compatibleLines(plane: AnatomicalPlane, descriptor: Descriptor, side?: Side): Set<MyofascialLineId> {
+  if (!['tilt', 'shift', 'bend', 'rotation'].includes(descriptor)) return new Set()
+  return new Set(resolveLinesForOperator(OBSERVATION_PLANES[plane], descriptor as FunctionalMovementOperator,
+    side === 'destro' ? 'dx' : side === 'sinistro' ? 'sx' : undefined).map(p => p.id))
+}
+
+const SPINAL_IDS = ['deviazione_rachidea', 'scoliosi_funzionale', 'curva_primaria', 'deviazione_sacrale',
+  'deviazione_rachidea_cervicale', 'deviazione_rachidea_cervico_dorsale', 'deviazione_rachidea_toracica',
+  'deviazione_rachidea_toraco_lombare', 'deviazione_rachidea_lombare', 'deviazione_rachidea_lombosacrale']
+const REGIONS: SpinalRegion[] = ['cervicale', 'cervico_dorsale', 'toracica', 'toraco_lombare', 'lombare', 'lombosacrale', 'sacrale']
+
+/** Rules specify relative relevance; membership/plane/operator/side compatibility comes from the clinical database. */
+function spinalWeights(descriptor: Descriptor, side?: 'dx' | 'sx'): LineWeight {
+  const compatible = compatibleLines('frontale_posteriore', descriptor, side === 'dx' ? 'destro' : side === 'sx' ? 'sinistro' : undefined)
+  const weights: LineWeight = {}
+  for (const id of compatible) {
+    if (descriptor === 'shift' && id.startsWith('lateral_')) weights[id] = side ? 2.5 : 0.7
+    if (descriptor === 'rotation' && id.startsWith('spiral_')) weights[id] = side ? 2.5 : 0.7
+    if (descriptor === 'bend' && id === 'superficial_back') weights[id] = 2
+    if (descriptor === 'bend' && side && id.startsWith('spiral_')) weights[id] = 1
+  }
+  return weights
+}
+
+const SPINAL_RULES: AlterationRule[] = REGIONS.flatMap(region =>
+  (['shift', 'rotation', 'bend'] as Descriptor[]).flatMap(descriptor => {
+    const base: AlterationRule = { alterationIds: SPINAL_IDS, descriptors: [descriptor], regions: [region], planes: ['frontale_posteriore'], lines: spinalWeights(descriptor) }
+    return [base, ...(['dx', 'sx'] as const).flatMap(direction => {
+      const rule: AlterationRule = { ...base, directions: [descriptor === 'rotation' ? `rotazione_${direction}` : direction], lines: spinalWeights(descriptor, descriptor === 'bend' ? undefined : direction) }
+      return descriptor === 'bend' ? [rule, ...(['dx', 'sx'] as const).map(convexity => ({ ...rule, convexities: [convexity], lines: spinalWeights(descriptor, convexity) }))] : [rule]
+    })]
+  }),
+)
+// Unknown region still uses the explicit operator, with lower match quality.
+const SPINAL_OPERATOR_RULES: AlterationRule[] = (['shift', 'rotation', 'bend'] as Descriptor[]).flatMap(descriptor => [
+  { alterationIds: SPINAL_IDS, descriptors: [descriptor], lines: spinalWeights(descriptor), planes: ['frontale_posteriore'] },
+  ...(['dx', 'sx'] as const).map(direction => ({ alterationIds: SPINAL_IDS, descriptors: [descriptor],
+    directions: [descriptor === 'rotation' ? `rotazione_${direction}` : direction] as ClinicalDirection[],
+    lines: spinalWeights(descriptor, descriptor === 'bend' ? undefined : direction), planes: ['frontale_posteriore'] as AnatomicalPlane[] })),
+])
+const distalCompatible = compatibleLines('frontale_posteriore', 'tilt')
+const DISTAL_RULES: AlterationRule[] = [{
+  alterationIds: ['asse_calcaneare_post', 'deviazione_achille'], descriptors: ['tilt'],
+  directions: ['varo', 'valgo', 'dx', 'sx'], planes: ['frontale_posteriore'],
+  lines: Object.fromEntries((['superficial_back', 'lateral_right', 'lateral_left'] as MyofascialLineId[])
+    .filter(id => distalCompatible.has(id)).map(id => [id, id === 'superficial_back' ? 1.2 : 1.5])),
+}]
+export const MYERS_RULES: AlterationRule[] = [...SPINAL_RULES, ...SPINAL_OPERATOR_RULES, ...DISTAL_RULES, ...GLOBAL_RULES]
+
+export function ruleSpecificity(rule: AlterationRule): number {
+  return (rule.descriptors ? 16 : 0) + (rule.directions ? 8 : 0) + (rule.regions ? 4 : 0) + (rule.convexities ? 2 : 0) + (rule.planes ? 1 : 0)
+}
+export function resolveMyersRule(plane: AnatomicalPlane, a: AlterationSelection, rules = MYERS_RULES): AlterationRule | undefined {
+  const region = alterationRegion(a)
+  return rules.filter(r => (r.alterationIds.includes(a.alterationId) || r.alterationIds.includes(resolveAlterationId(a.alterationId))) &&
+    (!r.planes || r.planes.includes(plane)) && (!r.descriptors || r.descriptors.includes(a.descriptor)) &&
+    (!r.directions || !!a.direction && r.directions.includes(a.direction)) &&
+    (!r.regions || r.regions.includes(region as SpinalRegion)) &&
+    (!r.convexities || !!a.anatomicalDetails?.convexity && r.convexities.includes(a.anatomicalDetails.convexity as 'dx' | 'sx')))
+    .sort((a, b) => ruleSpecificity(b) - ruleSpecificity(a))[0]
 }
 
 function getFallbackLineWeights(descriptor: Descriptor): LineWeight {
@@ -186,81 +254,77 @@ function sideFromLineId(lineId: MyofascialLineId, fallback: Side): Side {
   return fallback
 }
 
-function computeInferenceConfidence(
-  alteration: AlterationSelection,
-  score: number,
-  hasExplicitRule: boolean,
-): number {
-  let confidence = hasExplicitRule ? 0.55 : 0.35
-  if (alteration.source === 'confirmed') confidence += 0.15
-  else if (alteration.source === 'manual') confidence += 0.1
-  if (alteration.severity === 'severo') confidence += 0.12
-  else if (alteration.severity === 'moderato') confidence += 0.08
-  else confidence += 0.04
-  if (alteration.quantitative) confidence += 0.05
-  if (score >= 6) confidence += 0.05
-  return Math.min(0.95, Math.round(confidence * 100) / 100)
+function computeInferenceConfidence(a: AlterationSelection, rule?: AlterationRule): number {
+  let confidence = rule ? 0.4 : 0.25
+  if (rule?.descriptors) confidence += 0.1
+  if (rule?.directions) confidence += 0.08
+  if (rule?.regions) confidence += 0.08
+  if (rule?.convexities && a.anatomicalDetails?.convexitySource !== 'derived') confidence += 0.03
+  if (a.anatomicalDetails?.convexitySource === 'derived') confidence -= 0.04
+  if (a.status === 'confirmed' || a.status === 'modified' || a.source === 'confirmed' || a.source === 'manual') confidence += 0.08
+  if (a.quantitative) confidence += 0.05
+  if (!inferenceSide(a) || inferenceSide(a) === 'bilaterale') confidence -= 0.08
+  // A single pattern is not independent confirmation of a myofascial hypothesis.
+  confidence -= 0.05
+  return Math.max(0.15, Math.min(0.85, Math.round(confidence * 100) / 100))
 }
 
-function buildTissueInvolvements(
-  tissueNames: string[],
-  side: Side,
-  score: number,
-  descriptor: Descriptor,
-  lineConfidence: number,
-): TissueInvolvement[] {
-  return tissueNames.slice(0, 4).map((name, index) => ({
-    name,
-    side,
-    functionalState: inferTissueState(Math.max(1, score - index * 0.75), descriptor),
-    confidence: Math.max(0.3, Math.round((lineConfidence - index * 0.08) * 100) / 100),
+function buildTissueInvolvements(tissueNames: string[], side: Side, score: number, a: AlterationSelection, lineConfidence: number): TissueInvolvement[] {
+  const region = alterationRegion(a)
+  return tissueNames.filter(name => tissueProximity(name, region) === 'local').map(name => ({
+    name, side, region, proximity: 'local', functionalState: inferTissueState(score, a.descriptor),
+    confidence: Math.round(lineConfidence * 0.9 * 100) / 100,
   }))
 }
 
 function scoreAlterationLineWeights(
   alteration: AlterationSelection,
   plane: AnatomicalPlane,
-): { scores: Map<MyofascialLineId, number>; hasExplicitRule: boolean } {
+): { scores: Map<MyofascialLineId, number>; rule?: AlterationRule } {
   const config = getPlaneConfig(plane)
   const boostLines = new Set(config.primaryMyersLines)
-  const resolvedId = resolveAlterationId(alteration.alterationId)
-  const effectiveSide = effectiveSideForMyers(alteration)
-  const rules = resolveRules(resolvedId, plane)
+  const effectiveSide = inferenceSide(alteration)
+  const rule = resolveMyersRule(plane, alteration)
   const weight = SEVERITY_WEIGHT[alteration.severity]
   const scores = new Map<MyofascialLineId, number>()
 
   const addWeights = (lines: LineWeight, multiplier = 1) => {
     for (const [lineId, pts] of Object.entries(lines) as [MyofascialLineId, number][]) {
-      const target = applySideBias(lineId, effectiveSide)
+      const target = lineId
+      if (effectiveSide === 'destro' && /_(left|sx)$/.test(target)) continue
+      if (effectiveSide === 'sinistro' && /_(right|dx)$/.test(target)) continue
       const bonus = boostLines.has(target) ? 1.25 : 1
       const lineScore = pts * weight * bonus * multiplier
       scores.set(target, (scores.get(target) ?? 0) + lineScore)
     }
   }
 
-  if (rules.length > 0) {
-    for (const rule of rules) addWeights(rule.lines)
+  if (rule) {
+    addWeights(rule.lines)
   } else {
-    addWeights(getFallbackLineWeights(alteration.descriptor), 0.85)
+    const compatible = compatibleLines(plane, alteration.descriptor, effectiveSide)
+    const fallback = Object.fromEntries(Object.entries(getFallbackLineWeights(alteration.descriptor)).filter(([id]) => alteration.descriptor === 'compenso' || compatible.has(id as MyofascialLineId)))
+    addWeights(fallback, 0.85)
   }
 
-  return { scores, hasExplicitRule: rules.length > 0 }
+  return { scores, rule }
 }
 
 export function inferMyersForAlteration(
   plane: AnatomicalPlane,
   alteration: AlterationSelection,
 ): AlterationMyersInference {
-  const { scores, hasExplicitRule } = scoreAlterationLineWeights(alteration, plane)
-  const effectiveSide = effectiveSideForMyers(alteration) ?? 'bilaterale'
+  const { scores, rule } = scoreAlterationLineWeights(alteration, plane)
+  const effectiveSide = inferenceSide(alteration) ?? 'bilaterale'
   const lines: AlterationLineInference[] = []
 
   for (const [lineId, score] of scores) {
     if (score < MIN_INSTANCE_LINE_SCORE) continue
     const def = MYOFASCIAL_LINES[lineId]
     const side = sideFromLineId(lineId, effectiveSide)
-    const confidence = computeInferenceConfidence(alteration, score, hasExplicitRule)
+    const confidence = computeInferenceConfidence(alteration, rule)
     lines.push({
+      ruleSpecificity: rule ? ruleSpecificity(rule) : 0, sourceDescriptor: alteration.descriptor, sourceDirection: alteration.direction, sourceRegion: alterationRegion(alteration),
       lineId,
       lineName: def.name,
       side,
@@ -272,7 +336,7 @@ export function inferMyersForAlteration(
         def.softTissues,
         side,
         score,
-        alteration.descriptor,
+        alteration,
         confidence,
       ),
     })
@@ -335,7 +399,7 @@ export function analyzeMyofascialLinesForPlane(
 
   for (const alt of alterations) {
     const { scores } = scoreAlterationLineWeights(alt, plane)
-    const effectiveSide = effectiveSideForMyers(alt)
+    const effectiveSide = inferenceSide(alt)
     for (const [lineId, score] of scores) {
       const cur = aggregated.get(lineId) ?? { score: 0, sides: [] }
       cur.score += score
@@ -355,7 +419,7 @@ export function analyzeMyofascialLinesForPlane(
       prevalentSide: dominantSide(data.sides),
       possibleState: inferTissueState(data.score),
       involvedDistricts: def.districts,
-      softTissues: def.softTissues,
+      softTissues: [...new Set(alterations.flatMap(a => inferMyersForAlteration(plane, a).lines.filter(l => l.lineId === lineId).flatMap(l => l.tissues.map(t => t.name))))],
     })
   }
   return results.sort((a, b) => b.score - a.score)

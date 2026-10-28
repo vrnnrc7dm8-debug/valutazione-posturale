@@ -264,7 +264,7 @@ export function AlterationSelector({
               {/deviazione_rachidea|scoliosi/.test(sel.alterationId) && <>
                 <label className="text-xs">Regione
                   <select className="block w-full border p-1" value={sel.anatomicalDetails?.region ?? sel.alterationId.match(/deviazione_rachidea_(.+)/)?.[1] ?? 'indeterminata'} onChange={e => onUpdate(sel.instanceId, { anatomicalDetails: { ...sel.anatomicalDetails, region: e.target.value as NonNullable<AlterationSelection['anatomicalDetails']>['region'] } })}>
-                    {['indeterminata', 'cervicale', 'cervico_dorsale', 'toracica', 'toraco_lombare', 'lombare', 'lombosacrale', 'globale'].map(r => <option key={r} value={r}>{r.replaceAll('_', '-')}</option>)}
+                    {['indeterminata', 'cervicale', 'cervico_dorsale', 'toracica', 'toraco_lombare', 'lombare', 'lombosacrale', 'sacrale', 'globale'].map(r => <option key={r} value={r}>{r.replaceAll('_', '-')}</option>)}
                   </select>
                 </label>
                 <label className="text-xs">Convessità
