@@ -58,6 +58,8 @@ export const PLANE_CLINICAL_CONFIGS: Record<AnatomicalPlane, PlaneClinicalConfig
       { id: 'asse_calcaneare_anteriore', label: 'Asse calcaneare', suggestedDescriptors: ['tilt', 'shift'], district: 'arto_inferiore' },
       { id: 'appoggio_plantare', label: 'Appoggio plantare', suggestedDescriptors: ['shift', 'compenso'], district: 'arto_inferiore' },
       { id: 'triangoli_taglia', label: 'Triangoli della taglia', suggestedDescriptors: ['tilt', 'shift'], district: 'pelvico' },
+      { id: 'shift_capo', label: 'Shift capo', suggestedDescriptors: ['shift'], district: 'cranio_cervicale' },
+      { id: 'rotazione_capo', label: 'Rotazione capo', suggestedDescriptors: ['rotation'], district: 'cranio_cervicale' },
     ],
   },
   frontale_posteriore: {
@@ -83,8 +85,8 @@ export const PLANE_CLINICAL_CONFIGS: Record<AnatomicalPlane, PlaneClinicalConfig
       },
       {
         id: 'deviazione_rachidea_cervicale',
-        label: 'Deviazione rachidea cervicale',
-        suggestedDescriptors: ['shift', 'bend'],
+        label: 'Deviazione cervicale',
+        suggestedDescriptors: ['shift', 'bend', 'rotation'],
         district: 'cervicale',
         parentType: 'deviazione_rachidea',
       },
@@ -161,6 +163,9 @@ export const PLANE_CLINICAL_CONFIGS: Record<AnatomicalPlane, PlaneClinicalConfig
       { id: 'appoggio_retropiede', label: 'Appoggio retropiede', suggestedDescriptors: ['shift', 'compenso'], district: 'arto_inferiore' },
       { id: 'deviazione_achille', label: 'Deviazione tendine Achille', suggestedDescriptors: ['tilt', 'rotation'], district: 'arto_inferiore' },
       { id: 'asimmetria_triangolo_taglia', label: 'Asimmetria triangoli della taglia', suggestedDescriptors: ['tilt', 'shift'], district: 'pelvico' },
+      { id: 'tilt_capo', label: 'Tilt capo', suggestedDescriptors: ['tilt'], district: 'cranio_cervicale' },
+      { id: 'shift_capo', label: 'Shift capo', suggestedDescriptors: ['shift'], district: 'cranio_cervicale' },
+      { id: 'rotazione_capo', label: 'Rotazione capo', suggestedDescriptors: ['rotation'], district: 'cranio_cervicale' },
     ],
   },
   sagittale_destro: {

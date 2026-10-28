@@ -510,7 +510,7 @@ export const DESCRIPTOR_LABELS: Record<Descriptor, string> = {
   tilt: 'Tilt',
   bend: 'Bend',
   shift: 'Shift',
-  rotation: 'Rotation',
+  rotation: 'Rotazione',
   compenso: 'Compenso',
   fissazione_accorciamento: 'Fissazione in accorciamento',
   fissazione_allungamento: 'Fissazione in allungamento',

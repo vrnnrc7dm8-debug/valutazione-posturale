@@ -92,3 +92,32 @@ orientata è normalizzata modulo 180° nell'intervallo [-90°, 90°), anche nei 
 relativi. Il verso dei landmark non trasforma quindi una linea quasi orizzontale
 in un tilt di circa 180°. I test del caso a 21 landmark usano coordinate sintetiche,
 non una fotografia né coordinate di pazienti reali.
+
+## Operatori clinico-biomeccanici
+
+`ClinicalObservation.descriptor` e `PosturalPattern.descriptor` conservano
+l'operatore registrato dal clinico: shift (traslazione), tilt (inclinazione),
+rotation (rotazione assiale), bend (flessione/lateroflessione/curvatura), compenso
+(relazione funzionale). La chiave di consolidamento include l'operatore anche
+quando è indicato un gruppo clinico comune. Componenti cinematiche diverse non
+sono alias, anche se interessano lo stesso distretto. Le vecchie osservazioni
+senza descriptor usano soltanto un default di compatibilità dal fenomeno/catalogo;
+i descriptor espliciti non vengono riscritti.
+
+La deviazione cervicale permette shift, bend e rotation, con più istanze della
+stessa alterazione. Shift DX e Rotazione SX restano due pattern, raggiungono Myers
+con i rispettivi operatori e sono mostrati separatamente nel report. Non viene
+dedotta una relazione controlaterale né introdotto un tilt. I cataloghi frontali
+includono separatamente tilt_capo, shift_capo e rotazione_capo.
+
+Le nuove scelte di direzione per rotation sono rotazione_dx/rotazione_sx,
+visualizzate come Rotazione DX/SX; per shift e tilt frontali sono dx/sx,
+visualizzate con il rispettivo operatore. Queste direzioni sono anatomiche del
+paziente. Cambiare operatore elimina una direzione incompatibile, senza sceglierne
+un'altra automaticamente. Compenso non offre una direzione geometrica.
+
+Le misure distali di intrarotazione/extrarotazione stimate dai landmark frontali
+restano visibili come misure. Non vengono convertite automaticamente in una
+rotazione assiale DX/SX: una nuova osservazione rotation richiede che l'operatore
+specifichi esplicitamente la direzione prima della conferma. I valori storici
+rimangono leggibili e non vengono riscritti nell'archivio.

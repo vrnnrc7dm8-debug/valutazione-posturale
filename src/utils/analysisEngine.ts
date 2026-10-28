@@ -1,8 +1,8 @@
 import { runClinicalPipeline, formatPattern } from './clinicalPipeline'
 import { formatQuantitativeValue } from '@/data/clinicalThresholds'
 import {
-  CLINICAL_DIRECTION_LABELS,
   formatDirectionLabel,
+  formatOperatorDirection,
 } from '@/data/directionalDescriptors'
 import { getAlterationLabel } from '@/data/planes'
 import { MYOFASCIAL_LINES } from '@/data/myofascialLines'
@@ -20,7 +20,7 @@ import type {
   PlaneReportSection,
   Side,
 } from '@/types'
-import { DESCRIPTOR_LABELS, PLANE_LABELS, SEVERITY_LABELS, TISSUE_STATE_LABELS } from '@/types'
+import { PLANE_LABELS, SEVERITY_LABELS, TISSUE_STATE_LABELS } from '@/types'
 import {
   computeAutoMeasurements,
   type AutoMeasurement,
@@ -101,11 +101,8 @@ function formatObservedAlteration(
   plane: AnatomicalPlane,
   alteration: PlaneAssessment['alterations'][number],
 ): string {
-  const directionLabel = formatDirectionLabel(alteration.direction)
   const quantitativeLabel = formatQuantitativeValue(alteration.quantitative)
-  const descriptorPart = directionLabel
-    ? `${DESCRIPTOR_LABELS[alteration.descriptor]} ${directionLabel}`
-    : DESCRIPTOR_LABELS[alteration.descriptor]
+  const descriptorPart = formatOperatorDirection(alteration.descriptor, alteration.direction)
   const sidePart =
     alteration.side && !alteration.direction ? ` · ${alteration.side}` : ''
   const valuePart = quantitativeLabel ? ` · ${quantitativeLabel}` : ''
@@ -324,7 +321,7 @@ export function generateClinicalReport(
         p.alterations.includes(a),
       )?.plane
       return plane
-        ? `${getAlterationLabel(plane, a.alterationId)}${a.direction ? ` ${CLINICAL_DIRECTION_LABELS[a.direction]}` : ''}${a.quantitative ? ` ${formatQuantitativeValue(a.quantitative)}` : ''} (${SEVERITY_LABELS[a.severity]})`
+        ? `${getAlterationLabel(plane, a.alterationId)} — ${formatOperatorDirection(a.descriptor, a.direction)}${a.quantitative ? ` ${formatQuantitativeValue(a.quantitative)}` : ''} (${SEVERITY_LABELS[a.severity]})`
         : a.alterationId
     }),
     alteredMeridians: myofascialResults,

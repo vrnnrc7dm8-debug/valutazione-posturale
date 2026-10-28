@@ -1,3 +1,4 @@
+import { observationDescriptor, formatOperatorDirection } from '@/data/clinicalOperators'
 import { observationsFromAutoMeasurements, mergeAutomaticObservations } from './automaticObservations'
 import type { AutoMeasurement } from './biomechanicsEngine'
 import type { AlterationSelection, ClinicalObservation, PosturalPattern, TissueFunctionalState, PlaneAssessment, AlterationMyersInference } from '@/types'
@@ -22,7 +23,7 @@ export function observationsFromAssessments(planes: PlaneAssessment[]): Clinical
     const region = a.alterationId.match(/^deviazione_rachidea_(cervicale|toracica|lombare|lombosacrale)$/)?.[1] as NonNullable<PosturalPattern['anatomicalDetails']>['region']
     return {
       id: a.instanceId, plane: pa.plane, district: a.district ?? definition?.district ?? 'globale',
-      phenomenon, side: a.side, direction: a.direction, severity: a.severity,
+      phenomenon, descriptor: a.descriptor, side: a.side, direction: a.descriptor === 'compenso' ? undefined : a.direction, severity: a.severity,
       quantitative: a.quantitative, source: a.source === 'manual' || !a.source ? 'manual' : 'automatic_suggestion',
       sourceIds: [a.suggestionKey ?? a.instanceId], status: a.status ?? (a.source === 'suggested' ? 'suggested' : 'confirmed'),
       anatomicalDetails: phenomenon === 'deviazione_rachidea'
@@ -40,7 +41,7 @@ export function consolidateObservations(observations: ClinicalObservation[]): Po
     const phenomenon = canonicalPhenomenon(o.phenomenon)
     const direction = phenomenon === 'anteriorizzazione_capo' && (!o.direction || o.direction === 'anteriore') ? 'anteriorizzazione'
       : ['dislivello_acromiale', 'dislivello_sias', 'inclinazione_linea_bipupillare'].includes(phenomenon) ? o.direction ?? (o.side === 'destro' ? 'dx' : o.side === 'sinistro' ? 'sx' : undefined) : o.direction
-    const key = JSON.stringify([o.plane, o.patternId ?? [canonicalPhenomenon(o.phenomenon), o.district, o.side ?? '', direction ?? '',
+    const key = JSON.stringify([o.plane, observationDescriptor(phenomenon, o.plane, o.descriptor), o.patternId ?? [canonicalPhenomenon(o.phenomenon), o.district, o.side ?? '', direction ?? '',
       details?.region ?? 'indeterminata', details?.level ?? '', details?.apex ?? '', details?.convexity ?? 'indeterminata', details?.startLevel ?? '', details?.endLevel ?? '']])
     groups.set(key, [...(groups.get(key) ?? []), o])
   }
@@ -50,8 +51,8 @@ export function consolidateObservations(observations: ClinicalObservation[]): Po
     const sources = new Set(members.map(o => o.source))
     return {
       id: `pattern:${key}`, plane: selected.plane, district: selected.district,
-      phenomenon: canonicalPhenomenon(selected.phenomenon), side: selected.side,
-      direction: selected.direction, severity: selected.severity,
+      phenomenon: canonicalPhenomenon(selected.phenomenon), descriptor: observationDescriptor(selected.phenomenon, selected.plane, selected.descriptor), side: selected.side,
+      direction: selected.descriptor === 'compenso' ? undefined : selected.direction, severity: selected.severity,
       observationIds: members.map(o => o.id), anatomicalDetails: selected.anatomicalDetails,
       source: sources.size > 1 ? 'mixed' : selected.source === 'manual' ? 'manual' : 'derived',
       status: selected.status, notes: selected.notes,
@@ -66,11 +67,9 @@ export function patternSelection(p: PosturalPattern): AlterationSelection {
   const compatibleId = p.phenomenon === 'inclinazione_linea_bipupillare' ? 'inclinazione_bipupillare' : p.phenomenon === 'rotazione_arto_inferiore' ? 'rotazione_femorale_stimata' : regionalId
   const alterationId = getAlterationsForPlane(p.plane).some(a => a.id === compatibleId) ? compatibleId
     : p.phenomenon === 'deviazione_rachidea' ? 'scoliosi_funzionale' : p.phenomenon
-  const definition = getAlterationsForPlane(p.plane).find(a => a.id === alterationId || a.id === `${alterationId}_sx`)
   return {
-    instanceId: p.id, alterationId, descriptor: p.phenomenon === 'deviazione_rachidea' ? 'bend'
-      : (p.phenomenon === 'rotazione_arto_inferiore' || p.direction?.includes('rotazione')) ? 'rotation' : definition?.suggestedDescriptors.find(d => ['tilt', 'bend', 'shift', 'rotation'].includes(d)) ?? 'shift',
-    side: p.side, direction: p.direction, severity: p.severity ?? 'lieve',
+    instanceId: p.id, alterationId, descriptor: observationDescriptor(p.phenomenon, p.plane, p.descriptor),
+    side: p.side, direction: p.descriptor === 'compenso' ? undefined : p.direction, severity: p.severity ?? 'lieve',
     source: p.source === 'manual' ? 'manual' : 'confirmed', status: p.status,
     district: p.district, anatomicalDetails: p.anatomicalDetails, note: p.notes,
   }
@@ -132,7 +131,8 @@ export function runClinicalPipeline(planes: PlaneAssessment[], measurements: Aut
 
 export function formatPattern(p: PosturalPattern): string {
   const d = p.anatomicalDetails
-  return [p.phenomenon.replaceAll('_', ' '), p.side, p.direction, p.severity,
+  const label = ['tilt_capo', 'shift_capo', 'rotazione_capo'].includes(p.phenomenon) ? 'Capo' : p.phenomenon === 'deviazione_rachidea' && d?.region === 'cervicale' ? 'Deviazione cervicale' : p.phenomenon.replaceAll('_', ' ')
+  return [`${label} — ${formatOperatorDirection(observationDescriptor(p.phenomenon, p.plane, p.descriptor), p.direction)}`, p.side, p.severity,
     d && `Regione: ${d.region ?? 'indeterminata'} · Convessità: ${d.convexity ?? 'indeterminata'}`,
     d?.apex && `Apice: ${d.apex}`, d?.level && `Livello: ${d.level}`,
     d?.startLevel && `Inizio: ${d.startLevel}`, d?.endLevel && `Fine: ${d.endLevel}`, p.notes].filter(Boolean).join(' · ')
@@ -157,6 +157,6 @@ export function applyClinicalEdit(a: AlterationSelection, patch: Partial<Alterat
 /** Mantiene le osservazioni sorgente, evitando di ripetere gli alias nella presentazione. */
 export function observationSummaries(observations: ClinicalObservation[]): string[] {
   return [...new Set(observations.filter(o => o.status !== 'excluded' && o.status !== 'suggested').map(o =>
-    `${o.plane.replaceAll('_', ' ')}: ${canonicalPhenomenon(o.phenomenon).replaceAll('_', ' ')} · ${o.side ?? 'lato indeterminato'} · ${o.direction ?? 'direzione indeterminata'} · ${o.severity ?? 'grado indeterminato'}${o.quantitative ? ` · ${o.quantitative.value} ${o.quantitative.unit}` : ''}`,
+    `${o.plane.replaceAll('_', ' ')}: ${canonicalPhenomenon(o.phenomenon).replaceAll('_', ' ')} · ${o.side ?? 'lato indeterminato'} · ${formatOperatorDirection(observationDescriptor(o.phenomenon, o.plane, o.descriptor), o.direction)} · ${o.severity ?? 'grado indeterminato'}${o.quantitative ? ` · ${o.quantitative.value} ${o.quantitative.unit}` : ''}`,
   ))]
 }

@@ -49,7 +49,7 @@ it('permette di modificare ed escludere insieme le osservazioni di un pattern', 
   function Harness() {
     const [value, setValue] = useState<PlaneAssessment>({ plane: 'sagittale_destro', alterations: [
       { instanceId: 'a', alterationId: 'anteriorizzazione_capo', descriptor: 'shift', severity: 'moderato', source: 'confirmed' },
-      { instanceId: 'b', alterationId: 'forward_head_posture', descriptor: 'compenso', severity: 'moderato', source: 'confirmed' },
+      { instanceId: 'b', alterationId: 'forward_head_posture', descriptor: 'shift', severity: 'moderato', source: 'confirmed' },
     ] })
     assessment = value
     return createElement(PlaneClinicalPanel, { plane: value.plane, assessment: value, landmarks: [], onAssessmentChange: setValue })
@@ -69,6 +69,35 @@ it('permette di modificare ed escludere insieme le osservazioni di un pattern', 
     await act(async () => exclude.click())
     expect(assessment!.alterations.every(a => a.status === 'excluded')).toBe(true)
     expect(runClinicalPipeline([assessment!]).patterns).toEqual([])
+  } finally {
+    await act(async () => root.unmount())
+    vi.unstubAllGlobals()
+  }
+})
+
+it('rappresenta due istanze cervicali indipendenti: Shift DX e Rotazione SX', async () => {
+  const { PlaneClinicalPanel } = await import('@/components/PlaneClinicalPanel')
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const host = document.createElement('div')
+  const root = createRoot(host)
+  let api!: ReturnType<typeof usePlaneAlterations>
+  let assessment: PlaneAssessment
+  function Harness() {
+    const [value, setValue] = useState<PlaneAssessment>({ plane: 'frontale_posteriore', alterations: [] })
+    assessment = value
+    api = usePlaneAlterations(value.plane, value, setValue)
+    return createElement(PlaneClinicalPanel, { plane: value.plane, assessment: value, landmarks: [], onAssessmentChange: setValue })
+  }
+  try {
+    await act(async () => root.render(createElement(Harness)))
+    await act(async () => api.addAlteration('deviazione_rachidea_cervicale', { descriptor: 'shift', direction: 'dx' }))
+    await act(async () => api.addAlteration('deviazione_rachidea_cervicale', { descriptor: 'rotation', direction: 'rotazione_sx' }))
+    expect(assessment!.alterations.map(a => [a.descriptor, a.direction])).toEqual([['shift', 'dx'], ['rotation', 'rotazione_sx']])
+    expect(runClinicalPipeline([assessment!]).patterns).toHaveLength(2)
+    expect(host.textContent).toContain('Deviazione cervicale — Shift DX')
+    expect(host.textContent).toContain('Deviazione cervicale — Rotazione SX')
+    expect(host.textContent).not.toContain('Tilt DX')
+    expect(host.textContent).not.toContain('Bend DX')
   } finally {
     await act(async () => root.unmount())
     vi.unstubAllGlobals()

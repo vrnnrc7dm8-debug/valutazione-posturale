@@ -10,7 +10,7 @@ import {
 import {
   formatAlterationInstanceSummary,
   getAllowedDirections,
-  CLINICAL_DIRECTION_LABELS,
+  formatOperatorDirection,
 } from '@/data/directionalDescriptors'
 import { getAlterationsForPlane } from '@/data/planes'
 import type {
@@ -95,7 +95,7 @@ export function AlterationSelector({
           sel.alterationId,
           sel.descriptor,
         )
-        const femoroVariantId = isFemoroTibialeAlteration(sel.alterationId)
+        const femoroVariantId = isFemoroTibialeAlteration(sel.alterationId) && sel.descriptor !== 'rotation'
           ? resolveFemoroTibialeVariantId(sel)
           : null
 
@@ -210,7 +210,7 @@ export function AlterationSelector({
                       <SelectItem value="none">—</SelectItem>
                       {allowedDirections.map((d) => (
                         <SelectItem key={d} value={d}>
-                          {CLINICAL_DIRECTION_LABELS[d]}
+                          {formatOperatorDirection(sel.descriptor, d)}
                         </SelectItem>
                       ))}
                     </SelectContent>

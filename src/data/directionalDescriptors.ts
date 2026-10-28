@@ -1,3 +1,5 @@
+import { formatOperatorDirection } from './clinicalOperators'
+export { formatOperatorDirection } from './clinicalOperators'
 import { formatQuantitativeValue } from '@/data/clinicalThresholds'
 import {
   getFemoroTibialeVariantLabel,
@@ -28,8 +30,8 @@ export const CLINICAL_DIRECTION_LABELS: Record<ClinicalDirection, string> = {
   posteriorizzazione: 'Posteriorizzazione',
   intrarotazione: 'Intrarotazione',
   extrarotazione: 'Extrarotazione',
-  rotazione_dx: 'Rotazione destra',
-  rotazione_sx: 'Rotazione sinistra',
+  rotazione_dx: 'Rotazione DX',
+  rotazione_sx: 'Rotazione SX',
 }
 
 const FRONTAL_PLANES: AnatomicalPlane[] = ['frontale_anteriore', 'frontale_posteriore']
@@ -71,10 +73,8 @@ export function getDirectionsForDescriptor(
   plane: AnatomicalPlane,
   descriptor: Descriptor,
 ): ClinicalDirection[] {
+  if (descriptor === 'rotation') return ['rotazione_dx', 'rotazione_sx']
   if (plane === 'trasverso') {
-    if (descriptor === 'rotation') {
-      return ['intrarotazione', 'extrarotazione', 'rotazione_dx', 'rotazione_sx']
-    }
     if (descriptor === 'shift' || descriptor === 'tilt') {
       return ['dx', 'sx']
     }
@@ -84,13 +84,11 @@ export function getDirectionsForDescriptor(
   if (FRONTAL_PLANES.includes(plane)) {
     switch (descriptor) {
       case 'tilt':
-        return ['dx', 'sx', 'mediale', 'laterale']
+        return ['dx', 'sx']
       case 'shift':
         return ['dx', 'sx']
       case 'bend':
         return ['dx', 'sx', 'mediale', 'laterale']
-      case 'rotation':
-        return ['dx', 'sx']
       default:
         return []
     }
@@ -117,6 +115,9 @@ export function getAllowedDirections(
   alterationId: string,
   descriptor: Descriptor,
 ): ClinicalDirection[] {
+  if (descriptor === 'compenso') return []
+  if (descriptor === 'rotation') return ['rotazione_dx', 'rotazione_sx']
+  if (FRONTAL_PLANES.includes(plane) && (descriptor === 'shift' || descriptor === 'tilt')) return ['dx', 'sx']
   const def = getAlterationsForPlane(plane).find((a) => a.id === alterationId)
   if (def?.allowedDirections?.length) {
     return def.allowedDirections
@@ -161,8 +162,7 @@ export function buildAlterationUpdatePatch(
   patch: Partial<AlterationSelection>,
 ): Partial<AlterationSelection> {
   const nextDescriptor = patch.descriptor ?? current.descriptor
-  let nextDirection =
-    patch.direction !== undefined ? patch.direction : current.direction
+  let nextDirection = 'direction' in patch ? patch.direction : current.direction
 
   if (patch.descriptor && patch.descriptor !== current.descriptor) {
     nextDirection = sanitizeDirectionForAlteration(
@@ -173,7 +173,7 @@ export function buildAlterationUpdatePatch(
     )
   }
 
-  if (patch.direction !== undefined) {
+  if ('direction' in patch) {
     nextDirection = sanitizeDirectionForAlteration(
       plane,
       alterationId,
@@ -187,10 +187,7 @@ export function buildAlterationUpdatePatch(
     direction: nextDirection,
   }
 
-  const impliedSide = directionImpliesSide(nextDirection)
-  if (impliedSide && patch.side === undefined && !current.side) {
-    nextPatch.side = impliedSide
-  }
+  // Body side and motion direction are independent (e.g. right arm rotating left).
 
   return nextPatch
 }
@@ -210,7 +207,7 @@ export function formatAlterationInstanceSummary(sel: AlterationSelection): strin
     sinistro: 'SX',
     bilaterale: 'bilat.',
   }
-  if (isFemoroTibialeAlteration(sel.alterationId)) {
+  if (isFemoroTibialeAlteration(sel.alterationId) && sel.descriptor === 'tilt') {
     parts.push(getFemoroTibialeVariantLabel(sel))
     if (sel.side) {
       parts.push(sideShort[sel.side])
@@ -221,10 +218,9 @@ export function formatAlterationInstanceSummary(sel: AlterationSelection): strin
     ) {
       parts.push(CLINICAL_DIRECTION_LABELS[sel.direction])
     }
-  } else if (sel.direction) {
-    parts.push(CLINICAL_DIRECTION_LABELS[sel.direction])
-  } else if (sel.side) {
-    parts.push(sideShort[sel.side])
+  } else {
+    parts.push(formatOperatorDirection(sel.descriptor, sel.direction))
+    if (sel.side && !sel.direction) parts.push(`lato ${sideShort[sel.side]}`)
   }
   parts.push(SEVERITY_LABELS[sel.severity])
   return parts.join(' · ')

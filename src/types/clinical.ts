@@ -66,7 +66,7 @@ export interface ClinicalAlterationMeta {
 }
 
 
-import type { AnatomicalPlane, Severity, Side, MyofascialLineId } from './index'
+import type { AnatomicalPlane, Descriptor, Severity, Side, MyofascialLineId } from './index'
 
 export type ClinicalStatus = 'suggested' | 'confirmed' | 'modified' | 'excluded'
 export type SpinalRegion = 'cervicale' | 'cervico_dorsale' | 'toracica' | 'toraco_lombare' | 'lombare' | 'lombosacrale' | 'globale' | 'indeterminata'
@@ -79,6 +79,7 @@ export interface AnatomicalDetails {
   endLevel?: string
 }
 export interface ClinicalObservation {
+  descriptor?: Descriptor
   id: string
   plane: AnatomicalPlane
   district: ClinicalDistrict
@@ -96,6 +97,7 @@ export interface ClinicalObservation {
   notes?: string
 }
 export interface PosturalPattern {
+  descriptor?: Descriptor
   id: string
   plane: AnatomicalPlane
   district: ClinicalDistrict
