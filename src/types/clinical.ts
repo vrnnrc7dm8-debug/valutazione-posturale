@@ -64,3 +64,63 @@ export interface ClinicalAlterationMeta {
   parentType?: string
   allowedDirections?: ClinicalDirection[]
 }
+
+
+import type { AnatomicalPlane, Severity, Side, MyofascialLineId } from './index'
+
+export type ClinicalStatus = 'suggested' | 'confirmed' | 'modified' | 'excluded'
+export type SpinalRegion = 'cervicale' | 'cervico_dorsale' | 'toracica' | 'toraco_lombare' | 'lombare' | 'lombosacrale' | 'globale' | 'indeterminata'
+export interface AnatomicalDetails {
+  region?: SpinalRegion
+  level?: string
+  apex?: string
+  convexity?: 'dx' | 'sx' | 'indeterminata'
+  startLevel?: string
+  endLevel?: string
+}
+export interface ClinicalObservation {
+  id: string
+  plane: AnatomicalPlane
+  district: ClinicalDistrict
+  phenomenon: string
+  side?: Side
+  direction?: ClinicalDirection
+  severity?: Severity
+  quantitative?: QuantitativeValue
+  source: 'automatic_measurement' | 'automatic_suggestion' | 'manual'
+  sourceIds: string[]
+  status: ClinicalStatus
+  anatomicalDetails?: AnatomicalDetails
+  /** Collegamento esplicito deciso dal clinico; non dedotto da reperti diversi. */
+  patternId?: string
+  notes?: string
+}
+export interface PosturalPattern {
+  id: string
+  plane: AnatomicalPlane
+  district: ClinicalDistrict
+  phenomenon: string
+  side?: Side
+  direction?: ClinicalDirection
+  severity?: Severity
+  observationIds: string[]
+  anatomicalDetails?: AnatomicalDetails
+  source: 'derived' | 'manual' | 'mixed'
+  status: ClinicalStatus
+  confidence?: number
+  notes?: string
+}
+export interface TissueFunctionalState {
+  tissueId: string
+  name: string
+  side: Side
+  lengthState: 'shortened' | 'lengthened' | 'neutral' | 'unknown'
+  mobilityState: 'fixed' | 'restricted' | 'mobile' | 'unknown'
+  functionalRole: 'primary' | 'compensatory' | 'associated' | 'unknown'
+  evidence: string[]
+  observationIds: string[]
+  sourceLineIds: MyofascialLineId[]
+  confidence: number
+  conflict: boolean
+  conflictingEvidence: string[]
+}

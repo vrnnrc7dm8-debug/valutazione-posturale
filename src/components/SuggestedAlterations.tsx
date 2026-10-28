@@ -39,9 +39,9 @@ export function SuggestedAlterations({
     (s) =>
       !selected.some(
         (a) =>
-          a.alterationId === s.alterationId &&
-          (a.source === 'confirmed' || a.source === 'manual') &&
-          (s.side === undefined || a.side === s.side),
+          a.suggestionKey === `${s.alterationId}:${s.side ?? 'none'}` || (a.alterationId === s.alterationId &&
+          (a.source === 'confirmed' || a.source === 'manual' || a.status === 'excluded' || a.status === 'modified') &&
+          (s.side === undefined || a.side === s.side)),
       ),
   )
 
@@ -58,12 +58,6 @@ export function SuggestedAlterations({
       </p>
       <ul className="space-y-2">
         {pending.map((s) => {
-          const isSuggestedSelected = selected.some(
-            (a) =>
-              a.alterationId === s.alterationId &&
-              a.source === 'suggested' &&
-              (s.side === undefined || a.side === s.side),
-          )
           const q = formatQuantitativeValue(s.quantitative)
           const variantLabel =
             isFemoroTibialeAlteration(s.alterationId) && s.descriptor
@@ -105,7 +99,7 @@ export function SuggestedAlterations({
                   <Check className="h-3 w-3" />
                   Conferma
                 </Button>
-                {isSuggestedSelected && (
+                {(
                   <Button
                     type="button"
                     size="sm"
@@ -113,7 +107,7 @@ export function SuggestedAlterations({
                     className="h-6 text-[10px]"
                     onClick={() => onDismiss(s.alterationId, s.side)}
                   >
-                    Ignora
+                    Escludi
                   </Button>
                 )}
               </div>

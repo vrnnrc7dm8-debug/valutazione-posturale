@@ -1,3 +1,4 @@
+import { formatPattern, formatTissueState, observationSummaries } from './clinicalPipeline'
 import { isReportStale } from '@/utils/reportGeneration'
 import { anthropometryReportLines } from '@/utils/anthropometry'
 import { formatQuantitativeValue } from '@/data/clinicalThresholds'
@@ -117,6 +118,30 @@ export function buildTextReportLines(assessment: Assessment): string[] | null {
     '',
   ]
 
+  if (report.clinicalPipeline) {
+    // Il report nuovo usa soltanto lo snapshot generato, mai le alterazioni correnti.
+    const header = lines.slice(0, lines.indexOf('── PIANI ANALIZZATI ──'))
+    const pipeline = report.clinicalPipeline
+    header.push('A. MISURE OGGETTIVE')
+    for (const section of report.sections) {
+      header.push(section.planeLabel, section.dataAvailability?.note ?? '',
+        ...section.autoMeasurements, ...(section.recordedMeasurements ?? []))
+    }
+    for (const finding of report.quantitativePosturalFindings ?? []) {
+      if (finding.observationType !== 'inferenza_miofasciale') header.push(`${finding.segment}: ${finding.value.toFixed(1)} ${finding.unit} · ${finding.operator} ${finding.referenceMode}`)
+    }
+    header.push('B. OSSERVAZIONI POSTURALI')
+    header.push(...observationSummaries(pipeline.observations))
+    header.push('C. PATTERN CONSOLIDATI', ...pipeline.patterns.map(formatPattern))
+    header.push('D. IPOTESI MYOFASCIALI', ...report.alteredMeridians.map(m => `${MYOFASCIAL_LINES[m.lineId].name} (${m.prevalentSide})`))
+    header.push('E. TESSUTI CORRELATI')
+    for (const tissue of pipeline.tissues) {
+      header.push(formatTissueState(tissue), `Linee: ${tissue.sourceLineIds.map(id => MYOFASCIAL_LINES[id].name).join(', ')}`,
+        `Evidenze: ${tissue.evidence.map(id => { const p = pipeline.patterns.find(p => p.id === id); return p ? formatPattern(p) : id }).join('; ')}`)
+    }
+    header.push(report.priorityEvaluable === false ? 'Priorità: NON VALUTABILE' : `Priorità: ${report.therapeuticPriority}`, report.disclaimer)
+    return header
+  }
   if (report.sections?.length) {
     lines.push('── REPORT PER PIANO ANATOMICO ──')
     for (const sec of report.sections) {

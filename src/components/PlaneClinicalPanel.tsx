@@ -1,5 +1,5 @@
-import { AlterationInferencePreview } from '@/components/AlterationInferencePreview'
-import { TissueAnalysisPreview } from '@/components/TissueAnalysisPreview'
+import { AlterationSelector } from './AlterationSelector'
+import { runClinicalPipeline, formatPattern, formatTissueState, patternSelection, applyClinicalEdit } from '@/utils/clinicalPipeline'
 import { formatAlterationInstanceSummary } from '@/data/directionalDescriptors'
 import { getPlaneConfig } from '@/data/planes'
 import { MYOFASCIAL_LINES } from '@/data/myofascialLines'
@@ -9,8 +9,7 @@ import {
   type AutoMeasurement,
 } from '@/utils/biomechanicsEngine'
 import { isFrontalLowerLimbAutoMeasurementId } from '@/utils/frontalLowerLimbAnalysis'
-import { analyzeMyofascialLinesForPlane, inferMyersForPlane } from '@/utils/myersEngine'
-import { analyzeTissuesForPlane } from '@/utils/tissueAnalysis'
+import { analyzeMyofascialLinesForPlane } from '@/utils/myersEngine'
 import { scorePlaneAssessment } from '@/utils/postureScoring'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,12 +18,14 @@ interface PlaneClinicalPanelProps {
   plane: AnatomicalPlane
   assessment: PlaneAssessment
   landmarks: PlacedLandmark[]
+  onAssessmentChange?: (next: PlaneAssessment) => void
 }
 
 export function PlaneClinicalPanel({
   plane,
   assessment,
   landmarks,
+  onAssessmentChange,
 }: PlaneClinicalPanelProps) {
   const config = getPlaneConfig(plane)
   const normalized = landmarks.map((l) => ({
@@ -36,17 +37,10 @@ export function PlaneClinicalPanel({
       plane !== 'frontale_anteriore' ||
       !isFrontalLowerLimbAutoMeasurementId(measurement.id),
   )
-  const score = scorePlaneAssessment(assessment, autoMs)
-  const myers = analyzeMyofascialLinesForPlane(plane, assessment.alterations)
-  const myersByAlteration = inferMyersForPlane(plane, assessment.alterations)
-  const tissueAnalyses = analyzeTissuesForPlane(
-    plane,
-    assessment.alterations,
-    myersByAlteration,
-  )
-  const planeTopTissues = tissueAnalyses
-    .flatMap((a) => a.tissues)
-    .sort((a, b) => b.score - a.score)
+  const pipeline = runClinicalPipeline([assessment])
+  const consolidated = pipeline.consolidatedPlanes[0]
+  const score = scorePlaneAssessment(consolidated, autoMs)
+  const myers = analyzeMyofascialLinesForPlane(plane, consolidated.alterations)
 
   return (
     <Card className="border-clinical-200 bg-clinical-50/30">
@@ -121,17 +115,21 @@ export function PlaneClinicalPanel({
           </div>
         )}
 
-        {assessment.alterations.length > 0 && (
-          <AlterationInferencePreview plane={plane} inferences={myersByAlteration} />
-        )}
-
-        {assessment.alterations.length > 0 && (
-          <TissueAnalysisPreview
-            plane={plane}
-            analyses={tissueAnalyses}
-            planeTopTissues={planeTopTissues}
-          />
-        )}
+        <div>
+          <p className="font-semibold">Pattern consolidati</p>
+          {pipeline.patterns.map(p => <p key={p.id}>{formatPattern(p)} · {p.observationIds.length} osservazioni</p>)}
+          {onAssessmentChange && <AlterationSelector plane={plane} selected={pipeline.patterns.map(patternSelection)}
+            onUpdate={(id, patch) => {
+              const ids = new Set(pipeline.patterns.find(p => p.id === id)?.observationIds)
+              onAssessmentChange({ ...assessment, alterations: assessment.alterations.map(a => ids.has(a.instanceId) ? applyClinicalEdit(a, patch) : a) })
+            }}
+            onRemove={id => {
+              const ids = new Set(pipeline.patterns.find(p => p.id === id)?.observationIds)
+              onAssessmentChange({ ...assessment, alterations: assessment.alterations.filter(a => !ids.has(a.instanceId)) })
+            }} />}
+          <p className="mt-2 font-semibold">Tessuti correlati (ipotesi)</p>
+          {pipeline.tissues.map(t => <p key={`${t.tissueId}:${t.side}`} className="text-xs">{formatTissueState(t)}</p>)}
+        </div>
 
         {assessment.alterations.length > 0 && (
           <div>
@@ -139,7 +137,7 @@ export function PlaneClinicalPanel({
               Alterazioni selezionate
             </p>
             <ul className="space-y-0.5 text-xs text-slate-600">
-              {assessment.alterations.map((a) => (
+              {assessment.alterations.filter(a => a.status !== 'excluded').map((a) => (
                 <li key={a.instanceId}>
                   {config.alterations.find((x) => x.id === a.alterationId)?.label}
                   {' — '}

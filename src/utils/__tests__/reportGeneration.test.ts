@@ -22,8 +22,8 @@ describe('report della valutazione corrente', () => {
     expect(generated.patient).toBe(source.patient)
     expect(generated.archiveKey).toBe(source.archiveKey)
     expect(generated.report?.sections.map(s => s.plane)).toEqual(source.photos.map(p => p.plane))
-    expect(generated.report?.sections.flatMap(s => s.observedAlterations)).toHaveLength(29)
-    expect(generated.report?.mainAlterations).toHaveLength(29)
+    expect(generated.report?.sections.flatMap(s => s.observedAlterations)).toHaveLength(27)
+    expect(generated.report?.mainAlterations).toHaveLength(27)
     expect(generated.report?.sections.flatMap(s => s.autoMeasurements).length).toBeGreaterThan(0)
     expect(generated.report?.quantitativePosturalFindings?.every(f => Number.isFinite(f.value) && f.reportEligible !== false)).toBe(true)
     expect(generated.report?.antropometria).toMatchObject({ pesoKg: 70, altezzaCm: 175 })
@@ -76,7 +76,7 @@ describe('report della valutazione corrente', () => {
     const report = generateAssessmentReport(a).report!
     expect(report.sections.flatMap(s => s.autoMeasurements)).toEqual([])
     expect(report.quantitativePosturalFindings).toEqual([])
-    expect(report.sections.flatMap(s => s.observedAlterations)).toHaveLength(29)
+    expect(report.sections.flatMap(s => s.observedAlterations)).toHaveLength(27)
   })
   it('rileva report non aggiornati e richiede rigenerazione prima del testo e ZIP', async () => {
     const a = generateAssessmentReport(reportAssessment())

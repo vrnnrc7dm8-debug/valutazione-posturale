@@ -76,7 +76,7 @@ export const PLANE_CLINICAL_CONFIGS: Record<AnatomicalPlane, PlaneClinicalConfig
     alterations: [
       {
         id: 'scoliosi_funzionale',
-        label: 'Scoliosi funzionale',
+        label: 'Deviazione laterale funzionale del rachide',
         suggestedDescriptors: ['bend', 'rotation', 'compenso'],
         district: 'globale',
         parentType: 'scoliosi_funzionale',

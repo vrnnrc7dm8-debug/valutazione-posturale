@@ -1,3 +1,4 @@
+import { runClinicalPipeline, formatPattern } from './clinicalPipeline'
 import { formatQuantitativeValue } from '@/data/clinicalThresholds'
 import {
   CLINICAL_DIRECTION_LABELS,
@@ -108,7 +109,8 @@ function formatObservedAlteration(
   const sidePart =
     alteration.side && !alteration.direction ? ` · ${alteration.side}` : ''
   const valuePart = quantitativeLabel ? ` · ${quantitativeLabel}` : ''
-  return `${getAlterationLabel(plane, alteration.alterationId)} — ${descriptorPart}${sidePart}${valuePart} (${SEVERITY_LABELS[alteration.severity]})`
+  const details = alteration.anatomicalDetails ? ` · ${formatPattern({ id: alteration.instanceId, plane, district: alteration.district ?? 'globale', phenomenon: '', observationIds: [], source: 'manual', status: 'confirmed', anatomicalDetails: alteration.anatomicalDetails, notes: alteration.note })}` : alteration.note ? ` · ${alteration.note}` : ''
+  return `${getAlterationLabel(plane, alteration.alterationId)} — ${descriptorPart}${sidePart}${valuePart} (${SEVERITY_LABELS[alteration.severity]})${details}`
 }
 
 function sideShort(side: Side): string {
@@ -253,12 +255,15 @@ export function generateClinicalReport(
   myofascialResults: MyofascialLineResult[],
   defaultSubjectHeightCm?: number,
 ): ClinicalReportData {
+  const pipeline = runClinicalPipeline(planeAssessments)
+  planeAssessments = pipeline.consolidatedPlanes
+  myofascialResults = analyzeAllPlanes(planeAssessments)
   const autoMeasurements = collectReportMeasurements(photos)
 
   const planeScores = planeAssessments.map((pa) =>
     scorePlaneAssessment(pa, autoMeasurements),
   )
-  const structuredFindings = buildStructuredFindings(planeAssessments)
+  const structuredFindings: ClinicalFinding[] = []
   const findingsByPlane = new Map(
     REPORT_PLANE_ORDER.map((plane) => [
       plane,
@@ -289,7 +294,7 @@ export function generateClinicalReport(
           : planeAuto.length + drawnMeasurements.length === 0 ? 'Fotografia presente; nessuna misura calcolabile con i landmark validati e gli operatori disponibili per questo piano.'
           : 'Misure fotografiche derivate dai landmark validati disponibili; unità e riferimenti indicati per ciascun parametro.',
       },
-      recordedMeasurements: planeAlts.filter(a => a.quantitative && Number.isFinite(a.quantitative.value)).map(a => `${getAlterationLabel(plane, a.alterationId)}: ${formatQuantitativeValue(a.quantitative)}`),
+      recordedMeasurements: pipeline.observations.filter(o => o.plane === plane && o.status !== 'excluded' && o.status !== 'suggested' && o.quantitative && Number.isFinite(o.quantitative.value)).map(o => `${o.phenomenon.replaceAll('_', ' ')}: ${formatQuantitativeValue(o.quantitative)}`),
       observedAlterations: planeAlts.map((a) => formatObservedAlteration(plane, a)),
       autoMeasurements: [...planeAuto.map(
         (m) => `${m.label}: ${m.value}${m.suggestion ? ` · ${m.suggestion}` : ''}`,
@@ -308,9 +313,10 @@ export function generateClinicalReport(
   })
 
   const allAlterations = planeAssessments.flatMap((p) => p.alterations)
-  const rankedTissueFindings = analyzeAllTissues(planeAssessments)
+  const rankedTissueFindings: ReturnType<typeof analyzeAllTissues> = []
 
   const baseReport: ClinicalReportData = {
+    clinicalPipeline: { observations: pipeline.observations.filter(o => o.status !== 'excluded' && o.status !== 'suggested'), patterns: pipeline.patterns, tissues: pipeline.tissues },
     sections,
     analyzedPlanes: sections.map((s) => s.planeLabel),
     mainAlterations: allAlterations.map((a) => {
@@ -370,10 +376,11 @@ export function runFullAnalysis(
   photos: PhotoSlot[],
   defaultSubjectHeightCm?: number,
 ): FullAnalysisResult {
-  const myofascialResults = analyzeAllPlanes(planeAssessments)
+  const consolidatedPlanes = runClinicalPipeline(planeAssessments).consolidatedPlanes
+  const myofascialResults = analyzeAllPlanes(consolidatedPlanes)
   const autoMeasurements = collectReportMeasurements(photos)
 
-  const planeScores = planeAssessments.map((pa) =>
+  const planeScores = consolidatedPlanes.map((pa) =>
     scorePlaneAssessment(pa, autoMeasurements),
   )
   const report = generateClinicalReport(

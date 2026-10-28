@@ -1,3 +1,4 @@
+import { applyClinicalEdit } from '@/utils/clinicalPipeline'
 import { useCallback } from 'react'
 import { buildAlterationUpdatePatch } from '@/data/directionalDescriptors'
 import { getAlterationsForPlane } from '@/data/planes'
@@ -31,6 +32,7 @@ export function usePlaneAlterations(
         descriptor?: Descriptor
         severity?: Severity
         source?: AlterationSelection['source']
+        status?: AlterationSelection['status']
         quantitative?: QuantitativeValue
         direction?: ClinicalDirection
         side?: Side
@@ -49,6 +51,8 @@ export function usePlaneAlterations(
           direction: opts?.direction,
           side: opts?.side,
           source: opts?.source ?? 'manual',
+          status: opts?.status ?? (opts?.source === 'suggested' ? 'suggested' : 'confirmed'),
+          suggestionKey: opts?.source && opts.source !== 'manual' ? `${alterationId}:${opts?.side ?? 'none'}` : undefined,
         },
       ])
     },
@@ -70,12 +74,7 @@ export function usePlaneAlterations(
         assessment.alterations.map((a) => {
           if (a.instanceId !== instanceId) return a
           const merged = buildAlterationUpdatePatch(plane, a.alterationId, a, patch)
-          return {
-            ...a,
-            ...merged,
-            instanceId: a.instanceId,
-            source: merged.source ?? a.source ?? 'manual',
-          }
+          return applyClinicalEdit(a, { ...merged, source: merged.source ?? a.source ?? 'manual', status: patch.status ?? (patch.source === 'confirmed' ? 'confirmed' : 'modified') })
         }),
       )
     },
@@ -91,10 +90,12 @@ export function usePlaneAlterations(
           (side === undefined || a.side === side),
       )
       if (target) {
-        removeAlteration(target.instanceId)
+        updateAlteration(target.instanceId, { status: 'excluded' })
+      } else {
+        addAlteration(alterationId, { side, source: 'suggested', status: 'excluded' })
       }
     },
-    [assessment.alterations, removeAlteration],
+    [assessment.alterations, updateAlteration, addAlteration],
   )
 
   const confirmSuggestion = useCallback(
@@ -108,6 +109,9 @@ export function usePlaneAlterations(
         side?: Side
       },
     ) => {
+      if (assessment.alterations.some(a =>
+        a.suggestionKey === `${alterationId}:${opts?.side ?? 'none'}` ||
+        (a.alterationId === alterationId && a.source !== 'suggested' && (opts?.side === undefined || a.side === opts.side)))) return
       const existingSuggested = assessment.alterations.find(
         (a) =>
           a.alterationId === alterationId &&

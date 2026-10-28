@@ -95,6 +95,7 @@ export function AnnotationClinicalPanel({
           plane={plane}
           assessment={assessment}
           landmarks={clinicalLandmarks}
+          onAssessmentChange={onAssessmentChange}
         />
 
         {upperLimbFindings.length > 0 && (

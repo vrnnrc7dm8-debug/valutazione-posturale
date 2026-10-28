@@ -143,7 +143,7 @@ it('usa la valutazione caricata anche dopo un accesso iniziale fallito', async (
   await act(async () => { host.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) })
   await generate()
   expect(saved().patient.nome).toBe('Sintetico')
-  expect(saved().report!.sections.flatMap(s => s.observedAlterations)).toHaveLength(29)
+  expect(saved().report!.sections.flatMap(s => s.observedAlterations)).toHaveLength(27)
 })
 
 it('non rimpiazza con dati vecchi un report visibile quando si completa un salvataggio precedente', async () => {

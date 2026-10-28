@@ -1,3 +1,4 @@
+export type { ClinicalObservation, PosturalPattern, TissueFunctionalState, ClinicalStatus, AnatomicalDetails, SpinalRegion } from './clinical'
 import type {
   AssessmentSchemaVersion,
   ClinicalDirection,
@@ -294,6 +295,12 @@ export interface PhotoSlot {
 export type AlterationSource = 'manual' | 'suggested' | 'confirmed'
 
 export interface AlterationSelection {
+  status?: import('./clinical').ClinicalStatus
+  district?: ClinicalDistrict
+  anatomicalDetails?: import('./clinical').AnatomicalDetails
+  patternId?: string
+  /** Identità originale del suggerimento, conservata dopo correzioni di lato. */
+  suggestionKey?: string
   /** Identificatore univoco istanza (multi-istanza da Step 1). */
   instanceId: string
   alterationId: string
@@ -415,6 +422,11 @@ export interface PlaneReportSection {
 }
 
 export interface ClinicalReportData {
+  clinicalPipeline?: {
+    observations: import('./clinical').ClinicalObservation[]
+    patterns: import('./clinical').PosturalPattern[]
+    tissues: import('./clinical').TissueFunctionalState[]
+  }
   /** Immutable generation snapshot; image bytes are archived as existing photo references. */
   photographs?: PhotoSlot[]
   generatedAt?: string

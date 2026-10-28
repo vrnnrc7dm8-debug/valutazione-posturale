@@ -1,6 +1,5 @@
-import { Activity, Layers } from 'lucide-react'
+import { Activity } from 'lucide-react'
 import { getPlaneConfig } from '@/data/planes'
-import { MYOFASCIAL_LINES } from '@/data/myofascialLines'
 import type {
   AnatomicalPlane,
   PlaneAssessment,
@@ -10,11 +9,9 @@ import { AlterationChecklist } from '@/components/AlterationChecklist'
 import { AlterationSelector } from '@/components/AlterationSelector'
 import { PlaneClinicalPanel } from '@/components/PlaneClinicalPanel'
 import { usePlaneAlterations } from '@/hooks/usePlaneAlterations'
-import { analyzeMyofascialLinesForPlane } from '@/utils/myersEngine'
 import { computeAutoMeasurements } from '@/utils/biomechanicsEngine'
 import { getAllLandmarks } from '@/utils/landmarkCollection'
 import { isFrontalLowerLimbAutoMeasurementId } from '@/utils/frontalLowerLimbAnalysis'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -135,10 +132,6 @@ export function PosturalPlaneAssessment({
                 plane !== 'frontale_anteriore' ||
                 !isFrontalLowerLimbAutoMeasurementId(measurement.id),
             )
-            const myers = analyzeMyofascialLinesForPlane(
-              plane,
-              assessment.alterations,
-            )
 
             return (
               <TabsContent key={plane} value={plane} className="space-y-4">
@@ -146,6 +139,7 @@ export function PosturalPlaneAssessment({
                   plane={plane}
                   assessment={assessment}
                   landmarks={landmarks}
+                  onAssessmentChange={updateAssessment}
                 />
 
                 {autoMs.length > 0 && (
@@ -161,34 +155,6 @@ export function PosturalPlaneAssessment({
                             <span className="block text-[10px] text-amber-700">
                               {m.suggestion}
                             </span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {myers.length > 0 && (
-                  <div className="rounded-lg border border-slate-200 p-3">
-                    <p className="mb-2 flex items-center gap-1 text-xs font-semibold text-clinical-800">
-                      <Layers className="h-3 w-3" />
-                      Linee Myers coinvolte e tessuti
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {myers.map((m) => (
-                        <Badge key={m.lineId} variant={m.severity}>
-                          {MYOFASCIAL_LINES[m.lineId].name}
-                        </Badge>
-                      ))}
-                    </div>
-                    <ul className="mt-2 space-y-1 text-[10px] text-slate-600">
-                      {myers.map((m) => (
-                        <li key={m.lineId}>
-                          <span className="font-medium capitalize">
-                            {m.possibleState}
-                          </span>
-                          {m.softTissues.length > 0 && (
-                            <span> — {m.softTissues.join(', ')}</span>
                           )}
                         </li>
                       ))}

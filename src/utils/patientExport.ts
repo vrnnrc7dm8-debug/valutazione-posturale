@@ -1,3 +1,4 @@
+import { runClinicalPipeline } from './clinicalPipeline'
 import { getClinicalThresholdsSnapshot } from '@/data/clinicalThresholds'
 import type { Assessment, PhotoSlot } from '@/types'
 import {
@@ -10,8 +11,7 @@ import {
 } from '@/utils/exportWarnings'
 import { buildTextReportLines, saveBlobWithFilePicker } from '@/utils/export'
 import { parseDataUrl } from '@/utils/imageDataUrl'
-import { analyzeAllPlanes, inferMyersForAllPlanes } from '@/utils/myersEngine'
-import { analyzeAllTissues, analyzeTissuesForPlane } from '@/utils/tissueAnalysis'
+import { analyzeAllPlanes } from '@/utils/myersEngine'
 import { inferMyofascialAlterationsForPhotos } from '@/utils/myofascialInference'
 import { countLandmarks } from '@/utils/landmarkCollection'
 import { POSTURAL_THRESHOLDS } from '@/config/posturalThresholds'
@@ -124,16 +124,14 @@ export async function buildPatientExportZip(assessment: Assessment): Promise<Blo
     files.push(file.path)
   }
 
+  const pipeline = runClinicalPipeline(assessment.planeAssessments)
   const hasStoredMyers = assessment.myofascialResults.length > 0
   const myofascialResults = hasStoredMyers
     ? assessment.myofascialResults
-    : analyzeAllPlanes(assessment.planeAssessments)
+    : analyzeAllPlanes(pipeline.consolidatedPlanes)
 
-  const myersByAlteration = inferMyersForAllPlanes(assessment.planeAssessments)
-  const tissuesGlobal = analyzeAllTissues(assessment.planeAssessments)
-  const tissuesByAlteration = assessment.planeAssessments.flatMap((pa) =>
-    analyzeTissuesForPlane(pa.plane, pa.alterations),
-  )
+  const myersByAlteration = pipeline.inferences
+  const tissuesGlobal = assessment.report?.clinicalPipeline?.tissues ?? pipeline.tissues
 
   pushJsonEntry(entries, files, 'patient.json', assessment.patient)
 
@@ -160,8 +158,9 @@ export async function buildPatientExportZip(assessment: Assessment): Promise<Blo
   pushJsonEntry(entries, files, 'clinical/tissues.json', {
     computedAtExport: exportedAt,
     rankedGlobal: tissuesGlobal,
-    byAlteration: tissuesByAlteration,
-    fromReport: Boolean(assessment.report?.rankedTissueFindings?.length),
+    observations: pipeline.observations,
+    patterns: pipeline.patterns,
+    fromReport: Boolean(assessment.report?.clinicalPipeline),
   })
 
   pushJsonEntry(entries, files, 'clinical/thresholds.json', thresholds)

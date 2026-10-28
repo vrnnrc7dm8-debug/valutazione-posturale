@@ -1,3 +1,5 @@
+import { formatPattern, formatTissueState, observationSummaries } from '@/utils/clinicalPipeline'
+import { MYOFASCIAL_LINES } from '@/data/myofascialLines'
 import { ReportPhotograph, type ReportImageSize } from '@/components/ReportPhotograph'
 import { anthropometryReportLines } from '@/utils/anthropometry'
 import { AlertTriangle } from 'lucide-react'
@@ -100,6 +102,7 @@ export function ClinicalReport({ assessment, generating = false, error = '', sta
           {anthropometryReportLines(assessment).length > 0 && <section aria-label="Dati antropometrici" className="rounded-lg border p-4 text-sm">
             {anthropometryReportLines(assessment).map(line => <p key={line}>{line}</p>)}
           </section>}
+          <h3 className="font-semibold">{report.clinicalPipeline ? 'A. Misure oggettive per piano' : 'Analisi per piano'}</h3>
           {report.sections.map((section) => (
             <section key={section.plane} aria-label={`Report piano ${section.planeLabel}`} className="rounded-xl border border-slate-200 p-4">
 
@@ -123,12 +126,12 @@ export function ClinicalReport({ assessment, generating = false, error = '', sta
                 <p className="text-xs font-semibold uppercase text-slate-500">Misure registrate nella valutazione</p>
                 <ul className="text-sm">{section.recordedMeasurements?.map((m, i) => <li key={i}>{m}</li>)}</ul>
               </div>}
-              <p className="mb-3 text-sm text-slate-600">
+              {!report.clinicalPipeline && <p className="mb-3 text-sm text-slate-600">
                 <span className="font-medium">Pattern dominante:</span>{' '}
                 {section.dominantPattern}
-              </p>
+              </p>}
 
-              {section.observedAlterations.length > 0 && (
+              {!report.clinicalPipeline && section.observedAlterations.length > 0 && (
                 <div className="mb-3">
                   <p className="mb-1 text-xs font-semibold uppercase text-slate-500">
                     Alterazioni registrate
@@ -169,7 +172,7 @@ export function ClinicalReport({ assessment, generating = false, error = '', sta
                 </div>
               )}
 
-              {section.myersLines.length > 0 && (
+              {!report.clinicalPipeline && section.myersLines.length > 0 && (
                 <div className="mb-3">
                   <p className="mb-1 text-xs font-semibold uppercase text-slate-500">
                     Linee Myers (ipotesi)
@@ -189,7 +192,7 @@ export function ClinicalReport({ assessment, generating = false, error = '', sta
                 </div>
               )}
 
-              {section.compensationNotes.length > 0 && (
+              {!report.clinicalPipeline && section.compensationNotes.length > 0 && (
                 <p className="text-xs italic text-slate-500">
                   {section.compensationNotes.join(' ')}
                 </p>
@@ -197,9 +200,49 @@ export function ClinicalReport({ assessment, generating = false, error = '', sta
             </section>
           ))}
 
+          {report.quantitativePosturalFindings &&
+            report.quantitativePosturalFindings.length > 0 && (
+              <section className="space-y-2">
+                <p className="font-medium text-clinical-800">
+                  {report.clinicalPipeline ? 'Misure quantitative aggiuntive' : 'Reperti derivati: misure, indici e ipotesi'}
+                </p>
+                <ul className="space-y-2">
+                  {report.quantitativePosturalFindings.filter(f => !report.clinicalPipeline || f.observationType !== 'inferenza_miofasciale').map((f) => (
+                    <li
+                      key={f.id}
+                      className="rounded border border-slate-200 bg-white px-3 py-2 text-sm"
+                    >
+                      <p className="font-medium text-clinical-900">{f.segment}</p>
+                      <p className="text-xs text-slate-600">
+                        {f.observationType === 'inferenza_miofasciale' ? 'Ipotesi miofasciale' : f.observationType === 'osservazione_diretta' ? 'Osservazione geometrica' : 'Indice biomeccanico derivato'} · {f.operator} {f.referenceMode} · {f.value.toFixed(1)}
+                        {f.unit === 'deg' ? '°' : f.unit} · {f.severity}
+                      </p>
+                      {!report.clinicalPipeline && <p className="mt-1 text-xs text-slate-700">{f.interpretation}</p>}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+
+          {report.clinicalPipeline && <>
+            <section><h3 className="font-semibold">B. Osservazioni posturali</h3>
+              {observationSummaries(report.clinicalPipeline.observations).map(text => <p key={text}>{text}</p>)}
+            </section>
+            <section><h3 className="font-semibold">C. Pattern consolidati</h3>
+              {report.clinicalPipeline.patterns.map(p => <p key={p.id}>{formatPattern(p)} · {p.observationIds.length} osservazioni</p>)}
+            </section>
+            <section><h3 className="font-semibold">D. Ipotesi miofasciali</h3>
+              {report.alteredMeridians.map(m => <p key={m.lineId}>{MYOFASCIAL_LINES[m.lineId].name} · {m.prevalentSide}</p>)}
+            </section>
+            <section><h3 className="font-semibold">E. Tessuti correlati</h3>
+              {report.clinicalPipeline.tissues.map(t => <div key={`${t.tissueId}:${t.side}`} className="my-2 text-sm"><p>{formatTissueState(t)}</p><p className="text-xs">Linee: {t.sourceLineIds.map(id => MYOFASCIAL_LINES[id].name).join(', ')}</p><p className="text-xs">Evidenze: {t.evidence.map(id => { const p = report.clinicalPipeline!.patterns.find(p => p.id === id); return p ? formatPattern(p) : id }).join('; ')}</p></div>)}
+            </section>
+          </>}
+
           <Separator />
 
-          <section>
+          {!report.clinicalPipeline && <> <section>
             <h3 className="mb-3 text-sm font-semibold text-clinical-800">
               Meridiani miofasciali globali (Myers)
             </h3>
@@ -243,30 +286,7 @@ export function ClinicalReport({ assessment, generating = false, error = '', sta
             </ul>
           </section>
 
-          {report.quantitativePosturalFindings &&
-            report.quantitativePosturalFindings.length > 0 && (
-              <section className="space-y-2">
-                <p className="font-medium text-clinical-800">
-                  Reperti derivati: misure, indici e ipotesi
-                </p>
-                <ul className="space-y-2">
-                  {report.quantitativePosturalFindings.map((f) => (
-                    <li
-                      key={f.id}
-                      className="rounded border border-slate-200 bg-white px-3 py-2 text-sm"
-                    >
-                      <p className="font-medium text-clinical-900">{f.segment}</p>
-                      <p className="text-xs text-slate-600">
-                        {f.observationType === 'inferenza_miofasciale' ? 'Ipotesi miofasciale' : f.observationType === 'osservazione_diretta' ? 'Osservazione geometrica' : 'Indice biomeccanico derivato'} · {f.operator} {f.referenceMode} · {f.value.toFixed(1)}
-                        {f.unit === 'deg' ? '°' : f.unit} · {f.severity}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-700">{f.interpretation}</p>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
+          </>}
           {report.aiReady && (
             <p className="text-xs text-slate-400">
               AI: landmark detection{' '}

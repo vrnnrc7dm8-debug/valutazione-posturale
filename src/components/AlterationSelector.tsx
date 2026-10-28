@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { formatQuantitativeValue } from '@/data/clinicalThresholds'
 import {
@@ -70,8 +71,8 @@ export function AlterationSelector({
   onUpdate,
   onRemove,
 }: AlterationSelectorProps) {
+  const [editing, setEditing] = useState<string[]>([])
   if (selected.length === 0) return null
-
   const catalog = getAlterationsForPlane(plane)
 
   const grouped = selected.reduce<Map<string, AlterationSelection[]>>((acc, sel) => {
@@ -121,19 +122,22 @@ export function AlterationSelector({
                     confermata
                   </Badge>
                 )}
+                <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(ids => ids.includes(sel.instanceId) ? ids.filter(id => id !== sel.instanceId) : [...ids, sel.instanceId])}>Modifica</Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => onUpdate(sel.instanceId, { status: sel.status === 'excluded' ? 'modified' : 'excluded' })}>{sel.status === 'excluded' ? 'Ripristina' : 'Escludi'}</Button>
+                <span className="text-xs">{sel.status === 'excluded' ? 'Esclusa' : sel.status === 'modified' ? 'Modificata' : ''}</span>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   className="h-6 w-6 p-0 text-slate-500 hover:text-red-600"
                   onClick={() => onRemove(sel.instanceId)}
-                  title="Rimuovi istanza"
+                  title="Elimina istanza"
                 >
                   <Trash2 className="h-3 w-3" />
                 </Button>
               </div>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {editing.includes(sel.instanceId) && <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <Label className="text-[10px]">Descrittore</Label>
                 {femoroVariantId ? (
@@ -252,7 +256,33 @@ export function AlterationSelector({
                   </SelectContent>
                 </Select>
               </div>
-            </div>
+              <label className="text-xs">Distretto
+                <select className="block w-full border p-1" value={sel.district ?? def?.district ?? 'globale'} onChange={e => onUpdate(sel.instanceId, { district: e.target.value as AlterationSelection['district'] })}>
+                  {['cranio_cervicale', 'cervicale', 'cervico_dorsale', 'toracica', 'toraco_lombare', 'lombare', 'lombosacrale', 'sacrale', 'pelvico', 'cintura_scapolare', 'arto_superiore', 'arto_inferiore', 'globale'].map(d => <option key={d} value={d}>{d.replaceAll('_', ' ')}</option>)}
+                </select>
+              </label>
+              {/deviazione_rachidea|scoliosi/.test(sel.alterationId) && <>
+                <label className="text-xs">Regione
+                  <select className="block w-full border p-1" value={sel.anatomicalDetails?.region ?? sel.alterationId.match(/deviazione_rachidea_(.+)/)?.[1] ?? 'indeterminata'} onChange={e => onUpdate(sel.instanceId, { anatomicalDetails: { ...sel.anatomicalDetails, region: e.target.value as NonNullable<AlterationSelection['anatomicalDetails']>['region'] } })}>
+                    {['indeterminata', 'cervicale', 'cervico_dorsale', 'toracica', 'toraco_lombare', 'lombare', 'lombosacrale', 'globale'].map(r => <option key={r} value={r}>{r.replaceAll('_', '-')}</option>)}
+                  </select>
+                </label>
+                <label className="text-xs">Convessità
+                  <select className="block w-full border p-1" value={sel.anatomicalDetails?.convexity ?? 'indeterminata'} onChange={e => onUpdate(sel.instanceId, { anatomicalDetails: { ...sel.anatomicalDetails, convexity: e.target.value as 'dx' | 'sx' | 'indeterminata' } })}>
+                    <option value="indeterminata">Indeterminata</option><option value="dx">Destra</option><option value="sx">Sinistra</option>
+                  </select>
+                </label>
+                {(['level', 'apex', 'startLevel', 'endLevel'] as const).map((field, i) => <label key={field} className="text-xs">{['Livello', 'Apice', 'Livello iniziale', 'Livello finale'][i]}
+                  <input className="block w-full border p-1" value={sel.anatomicalDetails?.[field] ?? ''} onChange={e => onUpdate(sel.instanceId, { anatomicalDetails: { ...sel.anatomicalDetails, [field]: e.target.value } })} />
+                </label>)}
+              </>}
+              <label className="text-xs">Gruppo clinico comune (facoltativo)
+                <input className="block w-full border p-1" value={sel.patternId ?? ''} onChange={e => onUpdate(sel.instanceId, { patternId: e.target.value || undefined })} />
+              </label>
+              <label className="text-xs">Note
+                <textarea className="block w-full border p-1" value={sel.note ?? ''} onChange={e => onUpdate(sel.instanceId, { note: e.target.value })} />
+              </label>
+            </div>}
           </div>
         )
       })}
