@@ -68,3 +68,24 @@ class HttpTests(unittest.TestCase):
             self.assertEqual(self.request('POST', '/api/session', {'password': 'synthetic-password'})[0], 200)
             self.archive.volume = self.root/'disconnected'
             self.assertEqual(self.request('POST', '/api/assessments', self.assessment())[0], 503)
+
+    def test_synthpose_endpoints_require_session_and_preserve_archive_routes(self):
+        from synthpose_service import SynthPoseError
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(self.request('GET', '/api/ai/synthpose/status')[0], 401)
+            self.assertEqual(self.request('POST', '/api/ai/synthpose', {'image': 'synthetic', 'plane': 'frontale_anteriore'})[0], 401)
+            self.assertEqual(self.request('POST', '/api/session', {})[0], 200)
+            with patch('server.SYNTHPOSE_SERVICE.model_info', return_value={'available': False, 'reason': 'model_not_found', 'offline': True}):
+                status, info = self.request('GET', '/api/ai/synthpose/status')
+                self.assertEqual(status, 200)
+                self.assertFalse(info['available'])
+            with patch('server.SYNTHPOSE_SERVICE.predict', side_effect=SynthPoseError('SynthPose non installato. Eseguire backend/download_synthpose.py.', reason='model_not_found')):
+                status, info = self.request('POST', '/api/ai/synthpose', {'image': 'synthetic', 'plane': 'frontale_anteriore'})
+                self.assertEqual(status, 503)
+                self.assertEqual(info['reason'], 'model_not_found')
+                self.assertNotIn('traceback', json.dumps(info).lower())
+            self.assertEqual(self.request('GET', '/api/patients')[0], 200)
+            with patch('server.SYNTHPOSE_SERVICE.predict', return_value={'keypoints': [], 'model': 'synthetic-only'}) as predict:
+                self.assertEqual(self.request('POST', '/api/ai/synthpose', {'image': 'synthetic', 'plane': 'frontale_anteriore'})[0], 200)
+                predict.assert_called_once_with({'image': 'synthetic', 'plane': 'frontale_anteriore'})
+            self.assertEqual(self.request('GET', '/api/ai/synthpose/status', headers={'Origin': 'http://external.example'})[0], 403)

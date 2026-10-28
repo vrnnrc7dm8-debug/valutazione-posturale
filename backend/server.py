@@ -12,7 +12,8 @@ import re
 import secrets
 import sqlite3
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from synthpose_service import SERVICE as SYNTHPOSE_SERVICE, SynthPoseError
 from urllib.parse import parse_qs, urlsplit, unquote
 from uuid import uuid4
 
@@ -437,7 +438,11 @@ class Handler(BaseHTTPRequestHandler):
             if time.monotonic() > self.server.session_until or not any(hmac.compare_digest(s, 'clinical_session=' + self.server.token) for s in cookies):
                 raise ArchiveError('Sessione richiesta.', 401)
             archive = self.server.archive
-            if url.path == '/api/patient-directory' and self.command == 'GET':
+            if url.path == '/api/ai/synthpose/status' and self.command == 'GET':
+                result = SYNTHPOSE_SERVICE.model_info()
+            elif url.path == '/api/ai/synthpose' and self.command == 'POST':
+                result = SYNTHPOSE_SERVICE.predict(data)
+            elif url.path == '/api/patient-directory' and self.command == 'GET':
                 q = parse_qs(url.query)
                 result = archive.patient_directory(q.get('q', [''])[0], q.get('offset', ['0'])[0], q.get('limit', ['25'])[0], q.get('archived', ['false'])[0] == 'true')
             elif url.path.startswith('/api/patients/') and self.command == 'GET':
@@ -465,6 +470,8 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 raise ArchiveError('Operazione non disponibile.', 404)
             self.reply(200, result)
+        except SynthPoseError as error:
+            self.reply(error.status, {'error': str(error), 'reason': error.reason})
         except ArchiveError as error:
             self.reply(error.status, {'error': str(error)})
         except sqlite3.IntegrityError:
@@ -488,8 +495,8 @@ def main():
     parsed_origin = urlsplit(origin)
     if parsed_origin.scheme != 'http' or parsed_origin.hostname not in ('127.0.0.1', 'localhost') or parsed_origin.path:
         raise SystemExit('Origine frontend deve essere HTTP localhost.')
-    server = HTTPServer(('127.0.0.1', port), Handler)
-    server.build_id = hashlib.sha256(b''.join((Path(__file__).parent / name).read_bytes() for name in ('server.py', 'anthropometry.py', 'patient_management.py'))).hexdigest()
+    server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
+    server.build_id = hashlib.sha256(b''.join((Path(__file__).parent / name).read_bytes() for name in ('server.py', 'anthropometry.py', 'patient_management.py', 'synthpose_service.py'))).hexdigest()
     server.frontend_origins = (origin, origin.replace('127.0.0.1', 'localhost'))
     server.archive = Archive(*(os.environ[k] for k in required))
     server.token = secrets.token_urlsafe(32)

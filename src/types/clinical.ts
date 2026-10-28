@@ -1,5 +1,5 @@
 /** Versione del modello dati persistito (localStorage / futuro export). */
-export type AssessmentSchemaVersion = 'assessment-v1' | 'assessment-v2'
+export type AssessmentSchemaVersion = 'assessment-v1' | 'assessment-v2' | 'assessment-v3'
 
 export const LEGACY_ASSESSMENT_SCHEMA_VERSION = 'assessment-v1' as const
 export const CURRENT_ASSESSMENT_SCHEMA_VERSION = 'assessment-v2' as const

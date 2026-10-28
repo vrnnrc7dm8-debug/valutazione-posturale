@@ -1,0 +1,10 @@
+# Ambiente separato Python 3.12 consigliato su macOS Apple Silicon.
+# Versioni limitate alla API VitPose 4.x, distinta dal backend standard-library.
+torch>=2.6,<3
+transformers>=4.49,<5
+accelerate>=1.3,<2
+huggingface_hub>=0.29,<1
+pillow>=11,<13
+numpy>=1.26,<3
+# ViTPose postprocessing uses scipy.ndimage (Gaussian filtering / coordinate decoding).
+scipy>=1.13,<2

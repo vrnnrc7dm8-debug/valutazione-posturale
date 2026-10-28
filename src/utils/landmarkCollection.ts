@@ -231,6 +231,7 @@ export function confirmProposalById(
 ): StructuredLandmarkCollection {
   const proposal = collection.autoProposals.find((l) => l.id === id)
   if (!proposal) return collection
+  if (proposal.aiProposal && isLandmarkInClinicalBucket(proposal.landmarkId, collection)) return collection
 
   const confirmed = confirmEstimatedLandmark(proposal)
   return dedupeLandmarkCollection({
@@ -248,6 +249,7 @@ export function confirmAllProposals(
 ): StructuredLandmarkCollection {
   let next = collection
   for (const proposal of [...collection.autoProposals]) {
+    if (proposal.aiProposal && (proposal.aiProposal.mappingType !== 'direct' || !proposal.aiProposal.bulkEligible || proposal.aiProposal.rawConfidence < proposal.aiProposal.minimumConfidence)) continue
     next = confirmProposalById(next, proposal.id)
   }
   return next

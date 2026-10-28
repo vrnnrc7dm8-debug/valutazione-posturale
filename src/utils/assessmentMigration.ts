@@ -22,6 +22,7 @@ type StoredAssessment = Omit<Assessment, 'schemaVersion' | 'planeAssessments'> &
 export function detectSchemaVersion(
   assessment: Partial<StoredAssessment>,
 ): AssessmentSchemaVersion {
+  if (assessment.schemaVersion === 'assessment-v3') return 'assessment-v3'
   if (assessment.schemaVersion === CURRENT_ASSESSMENT_SCHEMA_VERSION) {
     return CURRENT_ASSESSMENT_SCHEMA_VERSION
   }
@@ -65,11 +66,11 @@ function ensurePlaneAssessmentInstanceIds(
   return migrateAlterationTaxonomy(planeAssessment)
 }
 
-/** Garantisce schema v2 e instanceId su ogni alterazione (idempotente). */
+/** Garantisce instanceId e integrità v2, preservando gli envelope v3 (idempotente). */
 export function ensureV2Integrity(assessment: Assessment): Assessment {
   return {
     ...assessment,
-    schemaVersion: CURRENT_ASSESSMENT_SCHEMA_VERSION,
+    schemaVersion: assessment.schemaVersion === 'assessment-v3' ? 'assessment-v3' : CURRENT_ASSESSMENT_SCHEMA_VERSION,
     planeAssessments: assessment.planeAssessments.map((pa) =>
       ensurePlaneAssessmentInstanceIds(pa),
     ),

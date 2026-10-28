@@ -1,3 +1,5 @@
+import { SynthPosePanel, SynthPoseDebugOverlay } from '@/components/SynthPosePanel'
+import { getSynthposeDisplayLandmarks, acceptReliableSynthposeProposals, acceptSynthposeProposal, mergeSynthposeProposals, type SynthposeResult } from '@/utils/synthposeAdapter'
 import {
   useCallback,
   useEffect,
@@ -71,7 +73,6 @@ import {
   confirmProposalById,
   findLandmarkById,
   getAllLandmarks,
-  getDisplayLandmarks,
   removeLandmarkById,
   updateLandmarkPosition,
   type LandmarkEditorDisplayMode,
@@ -206,6 +207,8 @@ function PhotoAnnotationEditorInner({
     'idle',
   )
   const [clinicalPanelOpen, setClinicalPanelOpen] = useState(true)
+  const [showAiProposals, setShowAiProposals] = useState(true)
+  const [synthposeDebug, setSynthposeDebug] = useState<SynthposeResult | null>(null)
   const [landmarkToolsOpen, setLandmarkToolsOpen] = useState(false)
   const [landmarkEditorMode, setLandmarkEditorMode] =
     useState<LandmarkEditorDisplayMode>('manual')
@@ -629,13 +632,13 @@ function PhotoAnnotationEditorInner({
 
   const safeLandmarks = useMemo(
     () =>
-      getDisplayLandmarks(annotations.landmarks, landmarkEditorMode).filter(
+      getSynthposeDisplayLandmarks(annotations.landmarks, landmarkEditorMode, showAiProposals).filter(
         (l) =>
           l?.position &&
           Number.isFinite(l.position.x) &&
           Number.isFinite(l.position.y),
       ),
-    [annotations.landmarks, landmarkEditorMode],
+    [annotations.landmarks, landmarkEditorMode, showAiProposals],
   )
 
   const isProposalLandmark = useCallback(
@@ -1529,6 +1532,7 @@ function PhotoAnnotationEditorInner({
               </div>
             )}
 
+            {synthposeDebug && effectiveImageRect && <SynthPoseDebugOverlay result={synthposeDebug} rect={effectiveImageRect} />}
             {effectiveImageRect &&
               displayLandmarks.map((lm) => {
                 const lid = normalizeLandmarkId(lm)
@@ -1668,6 +1672,13 @@ function PhotoAnnotationEditorInner({
 
           {clinicalPanelOpen && (
             <aside className="flex w-full min-h-0 max-h-[min(100%,720px)] shrink-0 flex-col border-t border-slate-200 lg:max-h-none lg:w-80 lg:border-t-0 lg:border-l xl:w-96">
+              <SynthPosePanel image={imageUrl} plane={plane} collection={annotations.landmarks}
+                visible={showAiProposals} onVisibleChange={setShowAiProposals} onDebug={setSynthposeDebug}
+                onProposals={proposals => commitWithHistory({ ...annotationsRef.current, landmarks: mergeSynthposeProposals(annotationsRef.current.landmarks, proposals) })}
+                onAccept={id => commitWithHistory({ ...annotationsRef.current, landmarks: acceptSynthposeProposal(annotationsRef.current.landmarks, id) })}
+                onAcceptReliable={() => commitWithHistory({ ...annotationsRef.current, landmarks: acceptReliableSynthposeProposals(annotationsRef.current.landmarks) })}
+                onReject={id => removeLandmarkCascade(id)}
+                onMove={id => { setTool('select'); setPanImageMode(false); setSelectedLmId(id) }} />
               <AnnotationClinicalPanel
                 plane={plane}
                 assessment={planeAssessment}

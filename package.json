@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "backend": "python3 backend/server.py",
+    "backend": "python3 backend/run_backend.py",
     "test:backend": "python3 -m unittest discover -s backend -p 'test_*.py'",
     "build": "tsc -b && vite build",
     "lint": "eslint .",

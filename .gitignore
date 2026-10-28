@@ -38,3 +38,13 @@ node_modules/
 dist/
 .venv/
 backend/.venv/
+
+# External AI installations / weights (never commit patient data or models).
+models/
+backend/models/
+.cache/
+huggingface/
+**/*.safetensors
+**/*.pt
+**/*.pth
+**/*.onnx

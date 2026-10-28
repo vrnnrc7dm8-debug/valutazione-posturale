@@ -33,6 +33,7 @@ export function normalizePlacedLandmark(
     category: raw.category ?? entry?.category ?? 'midline',
     confidence: raw.confidence ?? entry?.defaultConfidence ?? 1,
     notes: raw.notes,
+    aiProposal: raw.aiProposal,
     autoPosition: raw.autoPosition,
     detectionSource: raw.detectionSource,
     needsConfirmation: raw.needsConfirmation,

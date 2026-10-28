@@ -142,6 +142,16 @@ export type LandmarkValidationState =
   | 'manuale_corretto'
 
 export interface PlacedLandmark {
+  aiProposal?: {
+    model: string
+    modelVersion: string
+    keypoint: string
+    mappingType: import('@/data/synthposeLandmarkMapping').SynthposeMappingType
+    rawConfidence: number
+    minimumConfidence: number
+    reportEligibleByDefault: false
+    bulkEligible: boolean
+  }
   id: string
   landmarkId: string
   label: string

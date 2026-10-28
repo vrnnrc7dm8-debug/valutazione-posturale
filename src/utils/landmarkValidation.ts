@@ -57,6 +57,7 @@ export function getEffectiveConfidence(lm: PlacedLandmark): number {
   const raw = lm.confidence ?? 1
 
   if (state === 'automatico_stimato') {
+    if (lm.aiProposal) return Math.max(0, Math.min(1, lm.aiProposal.rawConfidence))
     return Math.min(raw, POSTURAL_THRESHOLDS.maxHeuristicLandmarkConfidence)
   }
   if (state === 'manuale_corretto') {

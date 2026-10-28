@@ -46,7 +46,7 @@ source .env
 set +a
 
 # Health includes the backend build fingerprint: do not silently reuse old Python code.
-EXPECTED_BUILD=$(cat backend/server.py backend/anthropometry.py backend/patient_management.py | shasum -a 256 | awk '{print $1}')
+EXPECTED_BUILD=$(cat backend/server.py backend/anthropometry.py backend/patient_management.py backend/synthpose_service.py | shasum -a 256 | awk '{print $1}')
 HEALTH=$(curl -fsS --max-time 2 -H 'X-Clinical-App: 1' http://127.0.0.1:8765/api/health 2>/dev/null || true)
 if lsof -nP -iTCP:8765 -sTCP:LISTEN >/dev/null 2>&1 &&
    [[ "$HEALTH" != *"$EXPECTED_BUILD"* ]]; then
