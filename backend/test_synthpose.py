@@ -161,3 +161,31 @@ class DownloadScriptTests(unittest.TestCase):
         with patch.dict(os.environ, {'SYNTHPOSE_MODEL_DIR': '/Volumes/TEST-NOT-MOUNTED/models'}, clear=True), patch.object(Path, 'is_mount', return_value=False), patch.dict('sys.modules', {'huggingface_hub': hub}), patch('builtins.print'):
             self.assertEqual(download_synthpose.main(), 1)
             hub.snapshot_download.assert_not_called()
+
+
+    def test_metadata_ignores_appledouble_non_utf8_and_unreadable_files(self):
+        import download_synthpose
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp).resolve()
+            metadata_dir = directory / '.cache' / 'huggingface' / 'download'
+            metadata_dir.mkdir(parents=True)
+            (metadata_dir / 'config.json.metadata').write_text('resolved-test-revision\netag\n', encoding='utf-8')
+            (metadata_dir / '._config.json.metadata').write_bytes(b'\x00\xff\xfeAppleDouble')
+            (metadata_dir / 'invalid.metadata').write_bytes(b'\xff\xfe')
+            (metadata_dir / 'unreadable.metadata').write_text('ignored', encoding='utf-8')
+            (metadata_dir / 'empty.metadata').write_text('', encoding='utf-8')
+            original_read_text = Path.read_text
+
+            def read_metadata(path, *args, **kwargs):
+                if path.name.startswith('._'):
+                    raise AssertionError('AppleDouble files must not be read')
+                if path.name == 'unreadable.metadata':
+                    raise OSError('Synthetic unreadable metadata')
+                return original_read_text(path, *args, **kwargs)
+
+            hub = MagicMock()
+            with patch.dict(os.environ, {'SYNTHPOSE_MODEL_DIR': str(directory)}, clear=True), patch.dict('sys.modules', {'huggingface_hub': hub}), patch('download_synthpose.validate_model_files'), patch.object(Path, 'read_text', read_metadata), patch('builtins.print'):
+                self.assertEqual(download_synthpose.main(), 0)
+                result = json.loads((directory / 'synthpose-install.json').read_text())
+                self.assertEqual(result['revision'], 'resolved-test-revision')
+                hub.snapshot_download.assert_called_once()

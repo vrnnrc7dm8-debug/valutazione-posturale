@@ -20,7 +20,12 @@ def main():
         # Local Hub metadata records the resolved commit; no photo is read by this script.
         revisions = set()
         for metadata in (directory / '.cache' / 'huggingface' / 'download').rglob('*.metadata'):
-            lines = metadata.read_text().splitlines()
+            if metadata.name.startswith('._'):
+                continue
+            try:
+                lines = metadata.read_text(encoding='utf-8').splitlines()
+            except (UnicodeDecodeError, OSError):
+                continue
             if lines:
                 revisions.add(lines[0])
         resolved = next(iter(revisions)) if len(revisions) == 1 else revision
