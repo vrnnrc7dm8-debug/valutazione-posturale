@@ -85,7 +85,7 @@ class SynthPoseTests(unittest.TestCase):
             self.assertEqual(service.device, 'mps')
             processor = transformers.AutoProcessor.from_pretrained
             loader = transformers.VitPoseForPoseEstimation.from_pretrained
-            processor.assert_called_once_with(str(self.directory), local_files_only=True, trust_remote_code=False)
+            processor.assert_called_once_with(str(self.directory), local_files_only=True, trust_remote_code=False, use_fast=False)
             loader.assert_called_once_with(str(self.directory), local_files_only=True, trust_remote_code=False, use_safetensors=True)
             self.assertEqual(os.environ['HF_HUB_OFFLINE'], '1')
 

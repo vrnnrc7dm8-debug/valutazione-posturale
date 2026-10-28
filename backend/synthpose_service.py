@@ -178,7 +178,7 @@ class SynthPoseService:
         except ImportError:
             raise SynthPoseError('Dipendenze AI mancanti. Installare backend/requirements-ai.txt.', reason='dependencies_missing') from None
         try:
-            processor = AutoProcessor.from_pretrained(str(directory), local_files_only=True, trust_remote_code=False)
+            processor = AutoProcessor.from_pretrained(str(directory), local_files_only=True, trust_remote_code=False, use_fast=False)
             model = VitPoseForPoseEstimation.from_pretrained(str(directory), local_files_only=True, trust_remote_code=False, use_safetensors=True)
             device = 'mps' if torch.backends.mps.is_available() else 'cpu'
             try:
