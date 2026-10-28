@@ -1,0 +1,51 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --color-clinical-50: #f0f7f9;
+  --color-clinical-100: #dceef2;
+  --color-clinical-200: #b8dde6;
+  --color-clinical-500: #2a7f8f;
+  --color-clinical-600: #1f6573;
+  --color-clinical-700: #184f5a;
+  --color-clinical-900: #0f2f36;
+}
+
+@layer base {
+  * {
+    @apply border-slate-200;
+  }
+  body {
+    @apply bg-clinical-50 text-slate-900 antialiased;
+    font-family: var(--font-sans);
+  }
+}
+
+/* Cursori editor annotazione posturale */
+@layer utilities {
+  .cursor-editor-pan {
+    cursor: grab;
+  }
+  .cursor-editor-pan-grabbing,
+  .cursor-editor-pan:active {
+    cursor: grabbing;
+  }
+  .cursor-editor-grabbing {
+    cursor: grabbing;
+  }
+  .cursor-editor-landmark {
+    cursor: crosshair;
+  }
+  .cursor-editor-line {
+    cursor: cell;
+  }
+  .cursor-editor-angle {
+    cursor: alias;
+  }
+  .cursor-editor-select {
+    cursor: grab;
+  }
+  .cursor-editor-delete {
+    cursor: not-allowed;
+  }
+}
