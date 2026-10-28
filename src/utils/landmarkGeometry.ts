@@ -5,7 +5,7 @@ import {
   type PosturalSeverityBand,
 } from '@/config/posturalThresholds'
 import type { PhotoCalibration, Point2D } from '@/types'
-import { segmentTiltDegrees } from '@/utils/angleCalculations'
+import { normalizeLineTiltDegrees, segmentTiltDegrees } from '@/utils/angleCalculations'
 import type { ResolvedCalibration } from '@/utils/calibration'
 import { normalizedDistanceToCm, resolveCalibration } from '@/utils/calibration'
 
@@ -88,9 +88,7 @@ export function computeAbsoluteTilt(pointA: Point2D, pointB: Point2D): TiltResul
 export function computeRelativeTilt(segmentA: SegmentLine, segmentB: SegmentLine): TiltResult {
   const tiltA = segmentTiltDegrees(segmentA.from, segmentA.to)
   const tiltB = segmentTiltDegrees(segmentB.from, segmentB.to)
-  let diff = tiltA - tiltB
-  while (diff > 180) diff -= 360
-  while (diff < -180) diff += 360
+  const diff = normalizeLineTiltDegrees(tiltA - tiltB)
   const degrees = Math.abs(diff)
   return {
     degrees,

@@ -66,3 +66,29 @@ I test coprono alias e duplicati, dimensioni tessutali, conflitti, esclusioni,
 priorità manuale, dettagli rachidei, lettura v2 e report storici, correzione di un
 suggerimento riproposto e modifica/esclusione di un intero pattern. La fixture di
 regressione conserva 29 registrazioni originali e produce 27 pattern consolidati.
+
+
+## Misure frontali e conferma clinica
+
+`observationsFromAutoMeasurements()` converte le sole misure frontali interpretabili
+classificate sopra la normalità in osservazioni `automatic_measurement/suggested`.
+Le misure normali restano visibili; nessuna proposta entra in Myers o nel report
+interpretativo prima della conferma. Il pannello consente conferma, modifica ed
+esclusione. Le decisioni sono conservate nel campo opzionale `PlaneAssessment.observations`
+dell'envelope esistente; nessun intervento sull'archivio o sul backend Lexar.
+L'identità è stabile per piano e ID misura, indipendente da valore, lato e direzione,
+così un ricalcolo non sovrascrive correzioni o esclusioni. Le selezioni legacy
+equivalenti sono consolidate; i suggerimenti frontali precedenti non sono mostrati
+una seconda volta nel pannello fotografico.
+
+Le osservazioni confermate conservano la misura accettata dal clinico come snapshot:
+un cambio successivo dei landmark non la riconferma né la riscrive automaticamente.
+Gli stati suggerito ed escluso non contribuiscono ai pattern. La priorità frontale
+usa i soli reperti confermati, evitando il doppio conteggio della stessa misura.
+
+Sono visibili asse femoro-tibiale e rotazione di entrambi gli arti, usando l'alluce
+come riferimento distale quando disponibile. L'inclinazione di una linea non
+orientata è normalizzata modulo 180° nell'intervallo [-90°, 90°), anche nei confronti
+relativi. Il verso dei landmark non trasforma quindi una linea quasi orizzontale
+in un tilt di circa 180°. I test del caso a 21 landmark usano coordinate sintetiche,
+non una fotografia né coordinate di pazienti reali.

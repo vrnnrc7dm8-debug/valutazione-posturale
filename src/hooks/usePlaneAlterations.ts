@@ -20,9 +20,9 @@ export function usePlaneAlterations(
 ) {
   const updateAlterations = useCallback(
     (alterations: AlterationSelection[]) => {
-      onAssessmentChange({ plane, alterations })
+      onAssessmentChange({ ...assessment, plane, alterations })
     },
-    [plane, onAssessmentChange],
+    [assessment, plane, onAssessmentChange],
   )
 
   const addAlteration = useCallback(

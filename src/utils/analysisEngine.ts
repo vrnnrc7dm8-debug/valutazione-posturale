@@ -255,13 +255,13 @@ export function generateClinicalReport(
   myofascialResults: MyofascialLineResult[],
   defaultSubjectHeightCm?: number,
 ): ClinicalReportData {
-  const pipeline = runClinicalPipeline(planeAssessments)
+  const autoMeasurements = collectReportMeasurements(photos)
+  const pipeline = runClinicalPipeline(planeAssessments, autoMeasurements)
   planeAssessments = pipeline.consolidatedPlanes
   myofascialResults = analyzeAllPlanes(planeAssessments)
-  const autoMeasurements = collectReportMeasurements(photos)
 
   const planeScores = planeAssessments.map((pa) =>
-    scorePlaneAssessment(pa, autoMeasurements),
+    scorePlaneAssessment(pa, autoMeasurements.filter(m => m.plane !== 'frontale_anteriore')),
   )
   const structuredFindings: ClinicalFinding[] = []
   const findingsByPlane = new Map(
@@ -381,7 +381,7 @@ export function runFullAnalysis(
   const autoMeasurements = collectReportMeasurements(photos)
 
   const planeScores = consolidatedPlanes.map((pa) =>
-    scorePlaneAssessment(pa, autoMeasurements),
+    scorePlaneAssessment(pa, autoMeasurements.filter(m => m.plane !== 'frontale_anteriore')),
   )
   const report = generateClinicalReport(
     planeAssessments,

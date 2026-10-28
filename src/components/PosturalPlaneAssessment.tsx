@@ -9,9 +9,7 @@ import { AlterationChecklist } from '@/components/AlterationChecklist'
 import { AlterationSelector } from '@/components/AlterationSelector'
 import { PlaneClinicalPanel } from '@/components/PlaneClinicalPanel'
 import { usePlaneAlterations } from '@/hooks/usePlaneAlterations'
-import { computeAutoMeasurements } from '@/utils/biomechanicsEngine'
-import { getAllLandmarks } from '@/utils/landmarkCollection'
-import { isFrontalLowerLimbAutoMeasurementId } from '@/utils/frontalLowerLimbAnalysis'
+import { getClinicalLandmarks } from '@/utils/landmarkCollection'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -120,19 +118,13 @@ export function PosturalPlaneAssessment({
 
           {TAB_PLANES.map((plane) => {
             const assessment = getAssessment(plane)
-            const landmarks = getAllLandmarks(
+            const landmarks = getClinicalLandmarks(
               photos.find((p) => p.plane === plane)?.annotations.landmarks ?? {
                 confirmed: [],
                 manual: [],
                 autoProposals: [],
               },
             )
-            const autoMs = computeAutoMeasurements(plane, landmarks).filter(
-              (measurement) =>
-                plane !== 'frontale_anteriore' ||
-                !isFrontalLowerLimbAutoMeasurementId(measurement.id),
-            )
-
             return (
               <TabsContent key={plane} value={plane} className="space-y-4">
                 <PlaneClinicalPanel
@@ -141,26 +133,6 @@ export function PosturalPlaneAssessment({
                   landmarks={landmarks}
                   onAssessmentChange={updateAssessment}
                 />
-
-                {autoMs.length > 0 && (
-                  <div className="rounded-lg border border-slate-200 p-3">
-                    <p className="mb-2 text-xs font-semibold text-clinical-800">
-                      Riepilogo biomeccanico automatico
-                    </p>
-                    <ul className="space-y-1 text-xs text-slate-600">
-                      {autoMs.map((m) => (
-                        <li key={m.id}>
-                          {m.label}: {m.value}
-                          {m.suggestion && (
-                            <span className="block text-[10px] text-amber-700">
-                              {m.suggestion}
-                            </span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
 
                 <div>
                   <p className="mb-2 text-sm font-medium text-clinical-800">

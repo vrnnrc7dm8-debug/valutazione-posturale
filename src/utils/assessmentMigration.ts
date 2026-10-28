@@ -48,6 +48,7 @@ function migrateAlterationTaxonomy(
   planeAssessment: StoredPlaneAssessment,
 ): PlaneAssessment {
   return {
+    ...planeAssessment,
     plane: planeAssessment.plane,
     alterations: (planeAssessment.alterations ?? []).map((alteration) => {
       const withId = ensureInstanceId(alteration)

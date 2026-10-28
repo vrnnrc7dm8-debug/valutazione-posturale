@@ -327,6 +327,7 @@ export interface AlterationSelection {
 }
 
 export interface PlaneAssessment {
+  observations?: import('./clinical').ClinicalObservation[]
   plane: AnatomicalPlane
   alterations: AlterationSelection[]
 }

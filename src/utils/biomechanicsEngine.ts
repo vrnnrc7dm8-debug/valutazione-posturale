@@ -4,7 +4,7 @@ import {
   normalizedToPercentValue,
   percentQuantitative,
 } from '@/data/clinicalThresholds'
-import type { AnatomicalPlane, PlacedLandmark, Point2D, QuantitativeUnit } from '@/types'
+import type { AnatomicalPlane, ClinicalDirection, Side, PlacedLandmark, Point2D, QuantitativeUnit } from '@/types'
 import { getPlaneConfig } from '@/data/planes'
 import { deviationFromVerticalDegrees, segmentTiltDegrees } from '@/utils/angleCalculations'
 import {
@@ -32,6 +32,9 @@ export interface BiomechanicalAxis {
 }
 
 export interface AutoMeasurement {
+  side?: Side
+  direction?: ClinicalDirection
+  observationNote?: string
   id: string
   label: string
   value: string
@@ -131,6 +134,9 @@ export function computeAutoMeasurements(
       const q = percentQuantitative(diff.magnitude)
       results.push({
         id: 'dislivello_acromiale_auto',
+        side: acrD.position.y === acrS.position.y ? undefined : acrD.position.y < acrS.position.y ? 'destro' : 'sinistro',
+        direction: acrD.position.y === acrS.position.y ? undefined : acrD.position.y < acrS.position.y ? 'dx' : 'sx',
+        observationNote: acrD.position.y === acrS.position.y ? 'Punti allo stesso livello' : acrD.position.y < acrS.position.y ? 'Destro più alto del sinistro' : 'Sinistro più alto del destro',
         label: 'Dislivello acromiale',
         value: `${q.value}% immagine`,
         severity: severityFromNormalizedMagnitude(diff.magnitude),
@@ -150,6 +156,9 @@ export function computeAutoMeasurements(
       const q = percentQuantitative(diff.magnitude)
       results.push({
         id: 'dislivello_sias_auto',
+        side: siasD.position.y === siasS.position.y ? undefined : siasD.position.y < siasS.position.y ? 'destro' : 'sinistro',
+        direction: siasD.position.y === siasS.position.y ? undefined : siasD.position.y < siasS.position.y ? 'dx' : 'sx',
+        observationNote: siasD.position.y === siasS.position.y ? 'Punti allo stesso livello' : siasD.position.y < siasS.position.y ? 'Destro più alto del sinistro' : 'Sinistro più alto del destro',
         label: 'Dislivello SIAS / tilt pelvico',
         value: `${q.value}%`,
         severity: severityFromNormalizedMagnitude(diff.magnitude),
@@ -162,9 +171,12 @@ export function computeAutoMeasurements(
     const puS = findLm(landmarks, 'bipupillare_sx')
     if (puD && puS) {
       const tilt = segmentTiltDegrees(pos(puD), pos(puS))
-      const q = degreesQuantitative(tilt)
+      const q = { value: Math.round(tilt * 10) / 10, unit: 'gradi' as const }
       results.push({
         id: 'bipupillare_tilt',
+        side: puD.position.y === puS.position.y ? undefined : puD.position.y < puS.position.y ? 'destro' : 'sinistro',
+        direction: puD.position.y === puS.position.y ? undefined : puD.position.y < puS.position.y ? 'dx' : 'sx',
+        observationNote: puD.position.y === puS.position.y ? 'Punti allo stesso livello' : puD.position.y < puS.position.y ? 'Destro più alto del sinistro' : 'Sinistro più alto del destro',
         label: 'Inclinazione linea bipupillare',
         value: `${q.value}°`,
         severity: autoSeverityFromDegrees(tilt, CLINICAL_THRESHOLDS.bipupillare_gradi),

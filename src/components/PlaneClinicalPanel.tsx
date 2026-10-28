@@ -1,3 +1,5 @@
+import { AutomaticObservationsPanel } from './AutomaticObservationsPanel'
+import { isReportEligibleLandmark } from '@/utils/landmarkValidation'
 import { AlterationSelector } from './AlterationSelector'
 import { runClinicalPipeline, formatPattern, formatTissueState, patternSelection, applyClinicalEdit } from '@/utils/clinicalPipeline'
 import { formatAlterationInstanceSummary } from '@/data/directionalDescriptors'
@@ -8,7 +10,6 @@ import {
   computeAutoMeasurements,
   type AutoMeasurement,
 } from '@/utils/biomechanicsEngine'
-import { isFrontalLowerLimbAutoMeasurementId } from '@/utils/frontalLowerLimbAnalysis'
 import { analyzeMyofascialLinesForPlane } from '@/utils/myersEngine'
 import { scorePlaneAssessment } from '@/utils/postureScoring'
 import { Badge } from '@/components/ui/badge'
@@ -28,18 +29,14 @@ export function PlaneClinicalPanel({
   onAssessmentChange,
 }: PlaneClinicalPanelProps) {
   const config = getPlaneConfig(plane)
-  const normalized = landmarks.map((l) => ({
+  const normalized = landmarks.filter(isReportEligibleLandmark).map((l) => ({
     ...l,
     landmarkId: l.landmarkId ?? (l as { type?: string }).type ?? '',
   }))
-  const autoMs: AutoMeasurement[] = computeAutoMeasurements(plane, normalized).filter(
-    (measurement) =>
-      plane !== 'frontale_anteriore' ||
-      !isFrontalLowerLimbAutoMeasurementId(measurement.id),
-  )
-  const pipeline = runClinicalPipeline([assessment])
+  const autoMs: AutoMeasurement[] = computeAutoMeasurements(plane, normalized)
+  const pipeline = runClinicalPipeline([assessment], autoMs)
   const consolidated = pipeline.consolidatedPlanes[0]
-  const score = scorePlaneAssessment(consolidated, autoMs)
+  const score = scorePlaneAssessment(consolidated, plane === 'frontale_anteriore' ? [] : autoMs)
   const myers = analyzeMyofascialLinesForPlane(plane, consolidated.alterations)
 
   return (
@@ -100,6 +97,11 @@ export function PlaneClinicalPanel({
           </div>
         )}
 
+        {onAssessmentChange && <AutomaticObservationsPanel
+          observations={pipeline.observations.filter(o => o.source === 'automatic_measurement')}
+          onDecision={observation => onAssessmentChange({ ...assessment,
+            observations: [...(assessment.observations ?? []).filter(o => o.id !== observation.id), observation],
+          })} />}
         {myers.length > 0 && (
           <div>
             <p className="mb-1 text-xs font-semibold text-clinical-800">
@@ -121,11 +123,11 @@ export function PlaneClinicalPanel({
           {onAssessmentChange && <AlterationSelector plane={plane} selected={pipeline.patterns.map(patternSelection)}
             onUpdate={(id, patch) => {
               const ids = new Set(pipeline.patterns.find(p => p.id === id)?.observationIds)
-              onAssessmentChange({ ...assessment, alterations: assessment.alterations.map(a => ids.has(a.instanceId) ? applyClinicalEdit(a, patch) : a) })
+              onAssessmentChange({ ...assessment, alterations: assessment.alterations.map(a => ids.has(a.instanceId) ? applyClinicalEdit(a, patch) : a), observations: assessment.observations?.map(o => ids.has(o.id) ? { ...o, side: 'side' in patch ? patch.side : o.side, direction: 'direction' in patch ? patch.direction : o.direction, district: patch.district ?? o.district, severity: patch.severity ?? o.severity, notes: patch.note ?? o.notes, status: patch.status ?? 'modified' } : o) })
             }}
             onRemove={id => {
               const ids = new Set(pipeline.patterns.find(p => p.id === id)?.observationIds)
-              onAssessmentChange({ ...assessment, alterations: assessment.alterations.filter(a => !ids.has(a.instanceId)) })
+              onAssessmentChange({ ...assessment, alterations: assessment.alterations.filter(a => !ids.has(a.instanceId)), observations: assessment.observations?.filter(o => !ids.has(o.id)) })
             }} />}
           <p className="mt-2 font-semibold">Tessuti correlati (ipotesi)</p>
           {pipeline.tissues.map(t => <p key={`${t.tissueId}:${t.side}`} className="text-xs">{formatTissueState(t)}</p>)}

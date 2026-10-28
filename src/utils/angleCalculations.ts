@@ -17,11 +17,16 @@ export function angleAtVertexDegrees(
   return (Math.acos(cos) * 180) / Math.PI
 }
 
-/** Angolo di inclinazione di un segmento rispetto all'orizzontale (gradi). */
+export function normalizeLineTiltDegrees(degrees: number): number {
+  const normalized = ((degrees + 90) % 180 + 180) % 180 - 90
+  return Object.is(normalized, -0) ? 0 : normalized
+}
+
+/** Inclinazione di una linea non orientata: equivalenza modulo 180°, [-90, 90). */
 export function segmentTiltDegrees(a: Point2D, b: Point2D): number {
   const dx = b.x - a.x
   const dy = b.y - a.y
-  return (Math.atan2(dy, dx) * 180) / Math.PI
+  return normalizeLineTiltDegrees((Math.atan2(dy, dx) * 180) / Math.PI)
 }
 
 /** Deviazione dalla verticale (gradi). */

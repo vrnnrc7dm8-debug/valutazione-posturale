@@ -1,3 +1,5 @@
+import { observationsFromAutoMeasurements, mergeAutomaticObservations } from './automaticObservations'
+import type { AutoMeasurement } from './biomechanicsEngine'
 import type { AlterationSelection, ClinicalObservation, PosturalPattern, TissueFunctionalState, PlaneAssessment, AlterationMyersInference } from '@/types'
 import { getAlterationsForPlane } from '@/data/planes'
 import { inferMyersForAlteration } from './myersEngine'
@@ -6,6 +8,8 @@ import { resolveTissueFunctionalState } from '@/data/myofascialLines'
 /** Alias clinici, separati dagli alias di migrazione per non riscrivere l'archivio. */
 export function canonicalPhenomenon(id: string): string {
   const normalized = id.trim().toLowerCase().replace(/[\s-]+/g, '_')
+  if (normalized === 'rotazione_femorale_stimata') return 'rotazione_arto_inferiore'
+  if (normalized === 'inclinazione_bipupillare') return 'inclinazione_linea_bipupillare'
   if (/^(forward_head(_posture)?|anteriorizzazione_(capo|testa))(_sx)?$/.test(normalized)) return 'anteriorizzazione_capo'
   if (/^(scoliosi_funzionale|deviazione_rachidea)(_|$)/.test(normalized)) return 'deviazione_rachidea'
   return normalized.replace(/_sx$/, '')
@@ -14,7 +18,7 @@ export function canonicalPhenomenon(id: string): string {
 export function observationsFromAssessments(planes: PlaneAssessment[]): ClinicalObservation[] {
   return planes.flatMap(pa => pa.alterations.map(a => {
     const definition = getAlterationsForPlane(pa.plane).find(d => d.id === a.alterationId)
-    const phenomenon = canonicalPhenomenon(a.alterationId)
+    const phenomenon = a.alterationId === 'asse_femoro_tibiale' && a.descriptor === 'rotation' ? 'rotazione_arto_inferiore' : canonicalPhenomenon(a.alterationId)
     const region = a.alterationId.match(/^deviazione_rachidea_(cervicale|toracica|lombare|lombosacrale)$/)?.[1] as NonNullable<PosturalPattern['anatomicalDetails']>['region']
     return {
       id: a.instanceId, plane: pa.plane, district: a.district ?? definition?.district ?? 'globale',
@@ -33,7 +37,9 @@ export function consolidateObservations(observations: ClinicalObservation[]): Po
   for (const o of observations) {
     if (o.status === 'excluded' || o.status === 'suggested') continue
     const details = o.anatomicalDetails
-    const direction = canonicalPhenomenon(o.phenomenon) === 'anteriorizzazione_capo' && (!o.direction || o.direction === 'anteriore') ? 'anteriorizzazione' : o.direction
+    const phenomenon = canonicalPhenomenon(o.phenomenon)
+    const direction = phenomenon === 'anteriorizzazione_capo' && (!o.direction || o.direction === 'anteriore') ? 'anteriorizzazione'
+      : ['dislivello_acromiale', 'dislivello_sias', 'inclinazione_linea_bipupillare'].includes(phenomenon) ? o.direction ?? (o.side === 'destro' ? 'dx' : o.side === 'sinistro' ? 'sx' : undefined) : o.direction
     const key = JSON.stringify([o.plane, o.patternId ?? [canonicalPhenomenon(o.phenomenon), o.district, o.side ?? '', direction ?? '',
       details?.region ?? 'indeterminata', details?.level ?? '', details?.apex ?? '', details?.convexity ?? 'indeterminata', details?.startLevel ?? '', details?.endLevel ?? '']])
     groups.set(key, [...(groups.get(key) ?? []), o])
@@ -57,12 +63,13 @@ export function consolidateObservations(observations: ClinicalObservation[]): Po
 export function patternSelection(p: PosturalPattern): AlterationSelection {
   const regionalId = p.phenomenon === 'deviazione_rachidea'
     ? `deviazione_rachidea_${p.anatomicalDetails?.region ?? 'indeterminata'}` : p.phenomenon
-  const alterationId = getAlterationsForPlane(p.plane).some(a => a.id === regionalId) ? regionalId
+  const compatibleId = p.phenomenon === 'inclinazione_linea_bipupillare' ? 'inclinazione_bipupillare' : p.phenomenon === 'rotazione_arto_inferiore' ? 'rotazione_femorale_stimata' : regionalId
+  const alterationId = getAlterationsForPlane(p.plane).some(a => a.id === compatibleId) ? compatibleId
     : p.phenomenon === 'deviazione_rachidea' ? 'scoliosi_funzionale' : p.phenomenon
   const definition = getAlterationsForPlane(p.plane).find(a => a.id === alterationId || a.id === `${alterationId}_sx`)
   return {
     instanceId: p.id, alterationId, descriptor: p.phenomenon === 'deviazione_rachidea' ? 'bend'
-      : p.direction?.includes('rotazione') ? 'rotation' : definition?.suggestedDescriptors.find(d => ['tilt', 'bend', 'shift', 'rotation'].includes(d)) ?? 'shift',
+      : (p.phenomenon === 'rotazione_arto_inferiore' || p.direction?.includes('rotazione')) ? 'rotation' : definition?.suggestedDescriptors.find(d => ['tilt', 'bend', 'shift', 'rotation'].includes(d)) ?? 'shift',
     side: p.side, direction: p.direction, severity: p.severity ?? 'lieve',
     source: p.source === 'manual' ? 'manual' : 'confirmed', status: p.status,
     district: p.district, anatomicalDetails: p.anatomicalDetails, note: p.notes,
@@ -99,8 +106,10 @@ export function consolidateTissueEvidence(evidence: TissueFunctionalState[]): Ti
   })
 }
 
-export function runClinicalPipeline(planes: PlaneAssessment[]) {
-  const observations = observationsFromAssessments(planes)
+export function runClinicalPipeline(planes: PlaneAssessment[], measurements: AutoMeasurement[] = []) {
+  const observations = mergeAutomaticObservations([
+    ...observationsFromAssessments(planes), ...planes.flatMap(p => p.observations ?? []),
+  ], observationsFromAutoMeasurements(measurements))
   const patterns = consolidateObservations(observations)
   const inferences = inferMyersFromPatterns(patterns)
   const tissues = consolidateTissueEvidence(inferences.flatMap(inference => {

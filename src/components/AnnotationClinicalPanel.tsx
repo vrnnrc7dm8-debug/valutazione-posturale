@@ -50,7 +50,7 @@ export function AnnotationClinicalPanel({
   } = usePlaneAlterations(plane, assessment, onAssessmentChange)
 
   const suggestions = useMemo(
-    () => computeAlterationSuggestions(plane, clinicalLandmarks),
+    () => plane === 'frontale_anteriore' ? [] : computeAlterationSuggestions(plane, clinicalLandmarks),
     [plane, clinicalLandmarks],
   )
 

@@ -1,6 +1,7 @@
 import { CLINICAL_THRESHOLDS, degreesQuantitative } from '@/data/clinicalThresholds'
 import type {
   AnatomicalPlane,
+  Side,
   ClinicalDirection,
   PlacedLandmark,
   Point2D,
@@ -11,6 +12,8 @@ import { autoSeverityFromDegrees, severityFromNormalizedMagnitude } from '@/util
 import { midpoint } from '@/utils/vectorAnalysis'
 
 export interface FrontalLowerLimbAutoMeasurement {
+  side?: Side
+  direction?: ClinicalDirection
   id: string
   label: string
   value: string
@@ -345,6 +348,7 @@ export function frontalLowerLimbToAutoMeasurements(
             severo: 15,
           }),
           plane: 'frontale_anteriore',
+          side, direction: metric.direction,
           numericValue: angleQ.value,
           unit: angleQ.unit,
           suggestion:
@@ -369,6 +373,7 @@ export function frontalLowerLimbToAutoMeasurements(
                 CLINICAL_THRESHOLDS.rotazione_arto_frontale,
               ),
         plane: 'frontale_anteriore',
+        side, direction: metric.direction,
         numericValue: limbResult.rotationDeviation,
         unit: 'normalizzato',
         suggestion:
