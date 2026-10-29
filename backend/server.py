@@ -153,11 +153,15 @@ class Archive:
             c.execute('BEGIN IMMEDIATE')
             if create and self.homonyms(p, c) and not p.get('allowHomonym'):
                 raise ArchiveError('Omonimo già presente: conferma esplicita richiesta.', 409)
-            data = self.anthropometry_for_save(c, p)
+            # A demographics-only PUT must not create or refresh a measurement.
+            data = self.anthropometry_for_save(c, p) if 'antropometria' in p else None
             pid = self.write_patient(c, p, create)
             if data is not None and 'antropometria' in p:
                 anthropometry.write_profile(c, pid, data)
-        return p
+        result = self.get_patient(p['id'])
+        with self.connect() as c:
+            result['homonymCount'] = len(self.homonyms(result, c))
+        return result
 
     def anthropometry_for_save(self, c, patient, requested=False):
         if not anthropometry.ready(c):

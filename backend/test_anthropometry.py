@@ -27,6 +27,31 @@ class AnthropometryTests(unittest.TestCase):
         a['patient'].update({'eta': 35, 'dataValutazione': measured, 'antropometria': {'pesoKg': weight, 'altezzaCm': height}})
         return a
 
+    def test_demographics_update_preserves_profile_history_and_patient_links(self):
+        self.activate()
+        a = self.measured()
+        eid = self.archive.save(a)['id']
+        before = self.archive.load(self.patient['id'], eid)
+        revisions = self.archive.revisions(self.patient['id'], eid)
+        files = {str(p.relative_to(self.archive.root)): p.read_bytes() for p in self.archive.root.rglob('*') if p.is_file()}
+        profile = self.archive.get_patient(self.patient['id'])['antropometria']
+        self.archive.save_patient({**self.patient, 'id': 'TEST-002', 'allowHomonym': True}, create=True)
+        updated = self.archive.save_patient({**self.patient, 'nome': 'Corretto', 'cognome': 'Anagrafica', 'sesso': 'F', 'noteCliniche': 'Nuove note'})
+        self.assertEqual(updated['id'], self.patient['id'])
+        self.assertEqual(updated['nome'], 'Corretto')
+        self.assertEqual(updated['cognome'], 'Anagrafica')
+        self.assertEqual(updated['sesso'], 'F')
+        self.assertEqual(updated['noteCliniche'], 'Nuove note')
+        self.assertEqual(updated['antropometria'], profile)
+        self.assertEqual(self.archive.load(self.patient['id'], eid), before)
+        self.assertEqual(self.archive.revisions(self.patient['id'], eid), revisions)
+        self.assertEqual({str(p.relative_to(self.archive.root)): p.read_bytes() for p in self.archive.root.rglob('*') if p.is_file()}, files)
+        homonym = self.archive.save_patient(self.patient)
+        self.assertEqual(homonym['homonymCount'], 1)
+        self.assertEqual(len(self.archive.patients()), 2)
+        self.assertEqual(self.archive.evaluations('TEST-002'), [])
+        self.assertEqual(self.archive.evaluations(self.patient['id'])[0]['id'], eid)
+
     def test_verified_backup_and_non_destructive_migration(self):
         self.archive.save(self.assessment())
         with self.archive.connect() as c:
