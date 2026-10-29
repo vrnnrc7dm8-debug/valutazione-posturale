@@ -163,6 +163,25 @@ class Archive:
             result['homonymCount'] = len(self.homonyms(result, c))
         return result
 
+    def update_anthropometry(self, code, payload):
+        code = self.code(code)
+        with self.connect() as c:
+            c.execute('BEGIN IMMEDIATE')
+            row = c.execute('SELECT * FROM Pazienti WHERE Codice_Clinico=?', (code,)).fetchone()
+            if row is None:
+                raise ArchiveError('Paziente non trovato.', 404)
+            from patient_management import archived_codes
+            if code in archived_codes(self):
+                raise ArchiveError("Paziente archiviato — ripristinalo per modificare l'antropometria.", 409)
+            if not isinstance(payload, dict) or not isinstance(payload.get('dataMisurazione'), str) or not payload['dataMisurazione']:
+                raise ArchiveError('Data misurazione non valida: usare YYYY-MM-DD.')
+            data = self.anthropometry_for_save(c, {'antropometria': payload, 'dataValutazione': payload['dataMisurazione']}, requested=True)
+            current = anthropometry.profile(c, row['ID_Paziente'])
+            if current and data['dataMisurazione'] < current['dataMisurazione']:
+                raise ArchiveError('Esiste una misurazione antropometrica più recente. Aggiornamento non applicato.', 409)
+            anthropometry.write_profile(c, row['ID_Paziente'], data)
+            return self.patient(row, c)
+
     def anthropometry_for_save(self, c, patient, requested=False):
         if not anthropometry.ready(c):
             if requested or 'antropometria' in patient:
@@ -449,6 +468,8 @@ class Handler(BaseHTTPRequestHandler):
             elif url.path == '/api/patient-directory' and self.command == 'GET':
                 q = parse_qs(url.query)
                 result = archive.patient_directory(q.get('q', [''])[0], q.get('offset', ['0'])[0], q.get('limit', ['25'])[0], q.get('archived', ['false'])[0] == 'true')
+            elif url.path.startswith('/api/patients/') and url.path.endswith('/anthropometry') and self.command == 'PUT':
+                result = archive.update_anthropometry(unquote(url.path.removeprefix('/api/patients/').removesuffix('/anthropometry')), data)
             elif url.path.startswith('/api/patients/') and self.command == 'GET':
                 result = archive.get_patient(unquote(url.path.removeprefix('/api/patients/')))
             elif url.path == '/api/patient-management' and self.command == 'POST':

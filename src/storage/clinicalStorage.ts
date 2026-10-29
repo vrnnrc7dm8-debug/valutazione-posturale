@@ -89,6 +89,10 @@ export function updatePatient(patient: Patient): Promise<Patient> {
   const { id, nome, cognome, sesso, noteCliniche } = patient
   return clinicalRequest('patients', { id, nome, cognome, sesso, noteCliniche }, 'PUT')
 }
+export function updatePatientAnthropometry(code: string, data: { pesoKg: number | null; altezzaCm: number | null; dataMisurazione: string }): Promise<Patient> {
+  if (!validMeasurement(data.pesoKg, 'pesoKg') || !validMeasurement(data.altezzaCm, 'altezzaCm')) throw new StoragePersistenceError('Peso o altezza fuori intervallo valido.')
+  return clinicalRequest(`patients/${encodeURIComponent(code)}/anthropometry`, data, 'PUT')
+}
 export interface EvaluationSummary { id: number; date: string; photoCount?: number; landmarkCount?: number; alterationCount?: number; hasReport?: boolean; unavailable?: boolean; antropometriaSnapshot?: AnthropometrySnapshot | null }
 export interface RevisionSummary { revision: string; current: boolean; updatedAt?: string; photoCount?: number; landmarkCount?: number; alterationCount?: number; hasReport?: boolean }
 export function listRevisions(code: string, id: number): Promise<RevisionSummary[]> { return clinicalRequest(`assessment-revisions?patient=${encodeURIComponent(code)}&id=${id}`) }

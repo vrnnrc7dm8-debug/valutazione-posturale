@@ -52,6 +52,62 @@ class AnthropometryTests(unittest.TestCase):
         self.assertEqual(self.archive.evaluations('TEST-002'), [])
         self.assertEqual(self.archive.evaluations(self.patient['id'])[0]['id'], eid)
 
+    def test_explicit_current_profile_update_preserves_historical_documents(self):
+        self.activate()
+        a = self.measured(weight=82, height=184, measured='2026-10-26')
+        eid = self.archive.save(a)['id']
+        before = self.archive.load(self.patient['id'], eid)
+        with self.archive.connect() as c:
+            snapshots = [tuple(r) for r in c.execute('SELECT * FROM Antropometria_Valutazioni')]
+        files = {str(p): p.read_bytes() for p in self.archive.root.rglob('*') if p.is_file()}
+        for payload in [
+            {'pesoKg': 80, 'altezzaCm': 184, 'dataMisurazione': '2026-10-29'},
+            {'pesoKg': 80, 'altezzaCm': 185, 'dataMisurazione': '2026-10-29'},
+            {'pesoKg': 79, 'altezzaCm': 186, 'dataMisurazione': '2026-10-30'},
+            {'pesoKg': None, 'altezzaCm': None, 'dataMisurazione': '2026-10-30'},
+        ]:
+            saved = self.archive.update_anthropometry(self.patient['id'], payload)
+            self.assertEqual({k: saved['antropometria'][k] for k in payload}, payload)
+            self.assertEqual(saved['nome'], self.patient['nome'])
+            self.assertEqual(self.archive.load(self.patient['id'], eid), before)
+            self.assertEqual(len(self.archive.evaluations(self.patient['id'])), 1)
+        with self.archive.connect() as c:
+            self.assertEqual([tuple(r) for r in c.execute('SELECT * FROM Antropometria_Valutazioni')], snapshots)
+        self.assertEqual({str(p): p.read_bytes() for p in self.archive.root.rglob('*') if p.is_file()}, files)
+        # A subsequent assessment owns a new snapshot; the old one stays intact.
+        current = self.archive.get_patient(self.patient['id'])
+        current.update({'antropometria': {'pesoKg': 80, 'altezzaCm': 184}, 'dataValutazione': '2026-10-30'})
+        new = self.assessment()
+        new.update({'archiveKey': 'b'*32, 'patient': current})
+        new_id = self.archive.save(new)['id']
+        self.assertEqual(self.archive.load(self.patient['id'], new_id)['antropometriaSnapshot']['pesoKg'], 80)
+        self.assertEqual(self.archive.load(self.patient['id'], eid), before)
+
+    def test_explicit_profile_validation_older_date_missing_and_archived(self):
+        self.activate()
+        self.archive.save(self.measured())
+        code = self.patient['id']
+        valid = {'pesoKg': 80, 'altezzaCm': 184, 'dataMisurazione': '2026-10-29'}
+        self.archive.update_anthropometry(code, valid)
+        before = self.archive.get_patient(code)
+        invalid = [
+            {**valid, 'pesoKg': v} for v in [-1, 0.2, 501, float('nan'), float('inf'), 'test', True]
+        ] + [{**valid, 'altezzaCm': v} for v in [19, 261, float('nan'), 'test']] + [
+            {**valid, 'dataMisurazione': v} for v in ['', None, '2026-02-30', '20261029', '2026-10-28']
+        ]
+        for payload in invalid:
+            with self.subTest(payload=payload), self.assertRaises(ArchiveError):
+                self.archive.update_anthropometry(code, payload)
+            self.assertEqual(self.archive.get_patient(code), before)
+        with self.assertRaises(ArchiveError) as missing:
+            self.archive.update_anthropometry('MISSING', valid)
+        self.assertEqual(missing.exception.status, 404)
+        from patient_management import manage
+        manage(self.archive, {'code': code, 'action': 'archive'})
+        with self.assertRaises(ArchiveError):
+            self.archive.update_anthropometry(code, valid)
+        self.assertEqual(self.archive.get_patient(code), before)
+
     def test_verified_backup_and_non_destructive_migration(self):
         self.archive.save(self.assessment())
         with self.archive.connect() as c:

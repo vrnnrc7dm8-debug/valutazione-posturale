@@ -59,6 +59,23 @@ class HttpTests(unittest.TestCase):
             self.server.session_until = time.monotonic() - 1
             self.assertEqual(self.request('GET', '/api/patients')[0], 401)
 
+    def test_explicit_patient_anthropometry_route(self):
+        from migrate_anthropometry import migrate
+        migrate(self.archive, self.root/'backup')
+        self.archive.save_patient(self.patient, create=True)
+        path = '/api/patients/TEST-001/anthropometry'
+        payload = {'pesoKg': 80, 'altezzaCm': 184, 'dataMisurazione': '2026-10-29'}
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(self.request('PUT', path, payload)[0], 401)
+            self.assertEqual(self.request('POST', '/api/session', {})[0], 200)
+            status, result = self.request('PUT', path, payload)
+            self.assertEqual(status, 200)
+            self.assertEqual(result['antropometria']['pesoKg'], 80)
+            self.assertEqual(self.request('GET', '/api/patients/TEST-001')[1]['antropometria'], result['antropometria'])
+            self.assertEqual(self.request('GET', '/api/assessments?patient=TEST-001')[1], [])
+            self.assertEqual(self.request('PUT', path, {**payload, 'dataMisurazione': '2026-10-28'})[0], 409)
+            self.assertEqual(self.request('PUT', path, {**payload, 'pesoKg': 501})[0], 400)
+
     def test_password_and_unplugged(self):
         import hashlib
         salt = b'synthetic-salt'

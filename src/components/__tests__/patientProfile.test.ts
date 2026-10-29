@@ -17,7 +17,7 @@ async function setup(archived = false) {
   const fetchMock = vi.fn(async (url: string, options: RequestInit) => {
     if (options.method === 'PUT') {
       if (fail) return { ok: false, json: async () => ({ error: 'Lexar scollegato' }) }
-      patient = { ...patient, ...JSON.parse(options.body as string), homonymCount: 1 }
+      patient = url.endsWith('/anthropometry') ? { ...patient, antropometria: JSON.parse(options.body as string) } : { ...patient, ...JSON.parse(options.body as string), homonymCount: 1 }
     }
     return { ok: true, json: async () => url.includes('patient-directory') ? { patients: [patient], total: 1, offset: 0, limit: 25 } : url.includes('assessments?') ? [{ id: 7, date: '2026-01-10' }] : patient }
   })
@@ -74,6 +74,40 @@ it('annulla senza PUT e conserva i dati originali dopo errore backend', async ()
 
 it('mostra il paziente archiviato in sola lettura', async () => {
   const s = await setup(true)
-  try { expect(s.host.textContent).toContain('ripristinalo per modificare'); expect(s.host.textContent).not.toContain('Modifica dati paziente') }
+  try { expect(s.host.textContent).toContain('ripristinalo per modificare'); expect(s.host.textContent).not.toContain('Modifica dati paziente'); expect(s.host.textContent).not.toContain('Modifica antropometria') }
   finally { await s.cleanup() }
+})
+
+
+it('aggiorna antropometria separatamente e inizializza la nuova valutazione col profilo corrente', async () => {
+  const s = await setup()
+  try {
+    await s.click('Modifica antropometria')
+    expect(s.host.querySelector<HTMLInputElement>('input[type="date"]')!.value).toBe('2026-01-10')
+    await s.edit('Peso (kg)', '80'); await s.edit('Altezza (cm)', '184'); await s.edit('Data misurazione', '2026-10-29')
+    await s.click('Salva antropometria')
+    expect(s.host.textContent).toContain('Antropometria aggiornata.')
+    expect(s.host.textContent).toContain('80 kg'); expect(s.host.textContent).toContain('184 cm'); expect(s.host.textContent).toContain('2026-10-29')
+    const put = s.fetchMock.mock.calls.find(([, o]) => o.method === 'PUT')!
+    expect(put[0]).toBe('/api/patients/TEST-001/anthropometry')
+    expect(JSON.parse(put[1].body as string)).toEqual({ pesoKg: 80, altezzaCm: 184, dataMisurazione: '2026-10-29' })
+    expect(s.host.textContent).toContain('Apri valutazione 7')
+    await s.click('Nuova valutazione per questo paziente')
+    expect(s.opened()?.patient.antropometria).toEqual({ pesoKg: 80, altezzaCm: 184, dataMisurazione: '2026-10-29' })
+    await s.click('Modifica antropometria'); await s.edit('Peso (kg)', ''); await s.edit('Altezza (cm)', ''); await s.click('Salva antropometria')
+    const last = s.fetchMock.mock.calls.filter(([, o]) => o.method === 'PUT').at(-1)!
+    expect(JSON.parse(last[1].body as string)).toMatchObject({ pesoKg: null, altezzaCm: null })
+    expect(s.host.textContent).not.toContain('80 kg')
+  } finally { await s.cleanup() }
+})
+
+it('antropometria: annullamento ed errore backend conservano il profilo', async () => {
+  const s = await setup()
+  try {
+    await s.click('Modifica antropometria'); await s.edit('Peso (kg)', '80'); await s.click('Annulla')
+    expect(s.fetchMock.mock.calls.some(([, o]) => o.method === 'PUT')).toBe(false)
+    await s.click('Modifica antropometria'); await s.edit('Peso (kg)', '80'); s.fail(); await s.click('Salva antropometria')
+    expect(s.host.textContent).toContain('Lexar scollegato'); expect(s.host.textContent).toContain('70 kg')
+    await s.click('Annulla'); expect(s.host.textContent).not.toContain('80 kg')
+  } finally { await s.cleanup() }
 })
