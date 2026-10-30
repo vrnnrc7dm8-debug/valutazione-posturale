@@ -335,7 +335,7 @@ export function inferMyersForAlteration(
     const side = sideFromLineId(lineId, effectiveSide)
     const confidence = Math.min(plane === 'trasverso' ? 0.55 : 1, alteration.myersContext?.confidence ?? computeInferenceConfidence(alteration, rule))
     lines.push({
-      contextPatternIds: alteration.myersContext?.patternIds,
+      contextPatternIds: alteration.myersContext?.patternIds, distalEvidence: alteration.myersContext?.distalEvidence,
       ruleSpecificity: rule ? ruleSpecificity(rule) : 0, sourceDescriptor: alteration.descriptor, sourceDirection: alteration.direction, sourceRegion: alterationRegion(alteration),
       lineId,
       lineName: def.name,

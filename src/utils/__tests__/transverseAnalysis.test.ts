@@ -123,18 +123,18 @@ it('misura relazioni omolaterali, crociate e podaliche e limita le inferenze all
   expect(noFoot.filter(m => /trasv_(pelvico|scapolare)_piede/.test(m.id)).every(m => m.numericValue === undefined)).toBe(true)
 })
 
-it('ante/retro alimentano Myers dal contesto confermato scapolo-pelvico-podalico senza diventare rotation', () => {
+it('il contesto scapolo-pelvico alimenta Myers e il riscontro calcaneare opzionale modula solo la confidence', () => {
   const measurements = analyzeTransverse(landmarks()).measurements
   const proposals = observationsFromAutoMeasurements(measurements)
   const ap = proposals.filter(o => ['posizione_scapulum', 'posizione_ileo'].includes(o.phenomenon)).map(o => ({ ...o, status: 'confirmed' as const }))
   const girdles = { ...proposals.find(o => o.phenomenon === 'relazione_scapolo_pelvica' && o.descriptor === 'dissociazione')!, status: 'confirmed' as const, direction: 'sx' as const }
   const foot = { ...proposals.find(o => o.phenomenon === 'relazione_cingoli_piedi')!, status: 'confirmed' as const, direction: 'sx' as const }
-  const run = (observations: typeof ap) => runClinicalPipeline([{ plane: 'trasverso', alterations: [], observations }], measurements)
+  const run = (observations: import('@/types').ClinicalObservation[]) => runClinicalPipeline([{ plane: 'trasverso', alterations: [], observations }], measurements)
   const result = run([...ap, girdles, foot])
   const apInferences = result.inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId))
   expect(apInferences).toHaveLength(4)
   const contextual = result.myersPlanes[0].alterations.filter(a => a.myersContext)
-  expect(analyzeMyofascialLinesForPlane('trasverso', contextual)).toEqual(analyzeMyofascialLinesForPlane('trasverso', contextual.slice(0, 1)))
+  expect(analyzeMyofascialLinesForPlane('trasverso', contextual).map(l => [l.lineId, l.score, l.prevalentSide])).toEqual(analyzeMyofascialLinesForPlane('trasverso', contextual.slice(0, 1)).map(l => [l.lineId, l.score, l.prevalentSide]))
   for (const inference of apInferences) {
     expect(inference.lines.some(l => l.lineId === 'spiral_left')).toBe(true)
     expect(inference.lines.some(l => l.lineId === 'functional_back')).toBe(true)
@@ -143,8 +143,19 @@ it('ante/retro alimentano Myers dal contesto confermato scapolo-pelvico-podalico
   }
   const changedSeverity = run([...ap.map(o => ({ ...o, severity: 'severo' as const })), girdles, foot])
   expect(changedSeverity.inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId)).map(i => i.lines.map(l => l.score))).toEqual(apInferences.map(i => i.lines.map(l => l.score)))
-  expect(run([...ap, girdles]).inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId))).toEqual([])
-  expect(run([...ap, girdles, { ...foot, direction: 'dx' }]).inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId))).toEqual([])
+  const primary = run([...ap, girdles]).inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId))
+  const discordant = run([...ap, girdles, { ...foot, direction: 'dx' }]).inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId))
+  expect(primary).toHaveLength(4); expect(discordant).toHaveLength(4)
+  expect(primary.map(i => i.lines.map(l => [l.side, l.score]))).toEqual(apInferences.map(i => i.lines.map(l => [l.side, l.score])))
+  expect(discordant.map(i => i.lines.map(l => [l.side, l.score]))).toEqual(primary.map(i => i.lines.map(l => [l.side, l.score])))
+  expect(apInferences[0].lines[0].confidence).toBeGreaterThan(primary[0].lines[0].confidence)
+  expect(discordant[0].lines[0].confidence).toBeLessThan(primary[0].lines[0].confidence)
+  expect(discordant[0].lines[0].distalEvidence).toBe('discordant')
+  expect(run(ap).inferences).toEqual([])
+  const unconfirmed = run([...ap, girdles, { ...foot, status: 'suggested' as const }])
+  expect(unconfirmed.inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId))).toEqual(primary)
+  const girdleConfidence = (pipeline: ReturnType<typeof run>) => pipeline.inferences.find(i => i.alterationId === 'relazione_scapolo_pelvica')!.lines[0].confidence
+  expect(girdleConfidence(result)).toBeGreaterThan(girdleConfidence(run([...ap, girdles])))
   const incomplete = analyzeTransverse(landmarks().filter(l => !l.landmarkId.startsWith('calcagno'))).measurements
-  expect(runClinicalPipeline([{ plane: 'trasverso', alterations: [], observations: [...ap, girdles, foot] }], incomplete).inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId))).toEqual([])
+  expect(runClinicalPipeline([{ plane: 'trasverso', alterations: [], observations: [...ap, girdles, foot] }], incomplete).inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId))).toEqual(primary)
 })

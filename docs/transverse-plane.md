@@ -74,11 +74,17 @@ La UI distingue misura, osservazione suggerita e pattern confermato. Un cambio
 operatore elimina una direzione incompatibile. Nessun suggerimento entra da solo
 in Myers. Ante/retro non implicano da soli linee rotatorie e non diventano semanticamente
 `rotation`. Dopo conferma contribuiscono alle Spirali e, dove appropriato, alle
-Funzionali attraverso un contesto complessivo: occorrono almeno una relazione
-scapolo-pelvica e una cingolo-piede confermate, concordanti nella direzione e
-supportate da misure correnti. Lato e intensità derivano da queste relazioni,
+Funzionali attraverso un contesto complessivo: è sufficiente una relazione
+scapolo-pelvica confermata, con direzione esplicita e supportata da misure correnti.
+Lato e intensità derivano dalle relazioni scapolo-pelviche concordanti,
 non dal lato, dal segno o dalla severità del singolo reperto ante/retro.
-Direzioni discordanti o misure mancanti sospendono questo contributo. Il contesto
+Direzioni scapolo-pelviche discordanti o misure primarie mancanti sospendono questo
+contributo. Il riscontro calcaneare/podalico è opzionale: se confermato e sostenuto
+da misure correnti modula la confidenza (45% senza riscontro, 50% concordante,
+40% discordante; valori euristici, non probabilità validate). Non cambia lato o
+intensità dell’ipotesi primaria. La concordanza può suggerire una propagazione
+distale, la discordanza un possibile compenso, sempre da interpretare clinicamente.
+Nessun tessuto remoto viene attribuito automaticamente senza evidenza locale. Il contesto
 è temporaneo, conserva gli ID dei pattern sorgente ed è mostrato nell’evidenza;
 le sue ripetizioni nei reperti ante/retro non moltiplicano lo score globale.
 Convergenza/divergenza non implicano automaticamente linee rotatorie.

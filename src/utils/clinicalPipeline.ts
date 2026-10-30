@@ -128,12 +128,17 @@ export function runClinicalPipeline(planes: PlaneAssessment[], measurements: Aut
   const matchesCurrent = (p: PosturalPattern) => currentTransverse.some(o => o.phenomenon === p.phenomenon && o.side === p.side && o.descriptor === p.descriptor && o.quantitative?.value === p.quantitative?.value)
   const contexts = new Map<string, NonNullable<AlterationSelection['myersContext']>>()
   const relations = patterns.filter(p => p.plane === 'trasverso' && matchesCurrent(p) && hasTransverseInferenceDirection(p.descriptor, p.direction) && ['relazione_scapolo_pelvica', 'relazione_cingoli_piedi'].includes(p.phenomenon))
-  if (relations.some(p => p.phenomenon === 'relazione_scapolo_pelvica') && relations.some(p => p.phenomenon === 'relazione_cingoli_piedi') && new Set(relations.map(p => p.direction)).size === 1) {
-    const context = { side: (relations[0].direction === 'dx' ? 'destro' : 'sinistro') as Side,
-      // Intensity comes from the overall relational geometry, never from AP operator or AP severity.
-      intensity: 1 + Math.min(1, relations.reduce((sum, p) => sum + Math.abs(p.quantitative!.value), 0) / relations.length / 30),
-      confidence: 0.45, patternIds: relations.map(p => p.id) }
-    for (const p of patterns.filter(p => p.plane === 'trasverso' && ['anteposizione', 'retroposizione'].includes(p.descriptor ?? '') && matchesCurrent(p) && (p.descriptor === 'anteposizione' ? p.direction === 'anteriore' : p.direction === 'posteriore'))) contexts.set(p.id, context)
+  const girdleRelations = relations.filter(p => p.phenomenon === 'relazione_scapolo_pelvica')
+  const distalRelations = relations.filter(p => p.phenomenon === 'relazione_cingoli_piedi')
+  if (girdleRelations.length && new Set(girdleRelations.map(p => p.direction)).size === 1) {
+    const direction = girdleRelations[0].direction
+    const distalEvidence = !distalRelations.length ? 'absent' : distalRelations.every(p => p.direction === direction) ? 'concordant' : 'discordant'
+    const context = { side: (direction === 'dx' ? 'destro' : 'sinistro') as Side,
+      // Optional distal evidence changes confidence, never primary side or intensity.
+      intensity: 1 + Math.min(1, girdleRelations.reduce((sum, p) => sum + Math.abs(p.quantitative!.value), 0) / girdleRelations.length / 30),
+      confidence: distalEvidence === 'concordant' ? 0.5 : distalEvidence === 'discordant' ? 0.4 : 0.45,
+      distalEvidence: distalEvidence as 'absent' | 'concordant' | 'discordant', patternIds: [...girdleRelations, ...distalRelations].map(p => p.id) }
+    for (const p of [...girdleRelations, ...patterns.filter(p => p.plane === 'trasverso' && ['anteposizione', 'retroposizione'].includes(p.descriptor ?? '') && matchesCurrent(p) && (p.descriptor === 'anteposizione' ? p.direction === 'anteriore' : p.direction === 'posteriore'))]) contexts.set(p.id, context)
   }
   const supported = (p: PosturalPattern) => p.plane !== 'trasverso' || matchesCurrent(p) && (hasTransverseInferenceDirection(p.descriptor, p.direction) || contexts.has(p.id))
   const inferences = inferMyersFromPatterns(patterns.filter(supported), contexts)
@@ -180,7 +185,7 @@ export function observationSummaries(observations: ClinicalObservation[]): strin
 export function formatMyersEvidence(patterns: PosturalPattern[], inferences: AlterationMyersInference[]): string[] {
   return inferences.flatMap(inference => {
     const pattern = patterns.find(p => p.id === inference.instanceId)
-    return inference.lines.map(line => `${line.lineName} · Origine: ${pattern ? formatPattern(pattern) : inference.alterationId} · Lato linea: ${line.side} · Confidenza: ${Math.round(line.confidence * 100)}%${line.contextPatternIds?.length ? ` · Contesto scapolo-pelvico-podalico: ${line.contextPatternIds.map(id => patterns.find(p => p.id === id)).filter((p): p is PosturalPattern => !!p).map(formatPattern).join('; ')}` : line.corroboratedBy?.length ? ' · riscontri indipendenti concordanti' : ' · singolo pattern'}`)
+    return inference.lines.map(line => `${line.lineName} · Origine: ${pattern ? formatPattern(pattern) : inference.alterationId} · Lato linea: ${line.side} · Confidenza: ${Math.round(line.confidence * 100)}%${line.distalEvidence === 'concordant' ? ' · Riscontro calcaneare concordante: possibile propagazione distale, da interpretare clinicamente' : line.distalEvidence === 'discordant' ? ' · Riscontro calcaneare discordante: possibile compenso, da interpretare clinicamente' : ''}${line.contextPatternIds?.length ? ` · Contesto scapolo-pelvico (riscontro calcaneare opzionale): ${line.contextPatternIds.map(id => patterns.find(p => p.id === id)).filter((p): p is PosturalPattern => !!p).map(formatPattern).join('; ')}` : line.corroboratedBy?.length ? ' · riscontri indipendenti concordanti' : ' · singolo pattern'}`)
   })
 }
 
