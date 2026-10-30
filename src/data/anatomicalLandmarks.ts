@@ -111,6 +111,8 @@ const FRONTALE_ANTERIORE: LandmarkCatalogEntry[] = [
 ]
 
 const FRONTALE_POSTERIORE: LandmarkCatalogEntry[] = [
+  lm('mastoide_dx', 'Mastoide DX (solo se visibile)', 'MastD', 'frontale_posteriore', 'destro', 'head'),
+  lm('mastoide_sx', 'Mastoide SX (solo se visibile)', 'MastS', 'frontale_posteriore', 'sinistro', 'head'),
   lm('occipite', 'Protuberanza occipitale esterna', 'Occ', 'frontale_posteriore', 'linea_mediana', 'head'),
   lm('linea_nucale', 'Linea nucale', 'Nuc', 'frontale_posteriore', 'linea_mediana', 'head'),
   ...['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7'].map((c) =>

@@ -456,6 +456,7 @@ export interface PlaneReportSection {
 
 export interface ClinicalReportData {
   clinicalPipeline?: {
+    patternRecognition?: import('./patternRecognition').PatternRecognitionResult
     functionalModel?: import('./functional').FunctionalModel
     inferences?: AlterationMyersInference[]
     observations: import('./clinical').ClinicalObservation[]

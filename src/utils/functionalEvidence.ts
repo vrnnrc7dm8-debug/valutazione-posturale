@@ -54,7 +54,7 @@ export function independentEvidence(a: FunctionalProvenance, b: FunctionalProven
   return !a.sourceObservationIds.some(id => b.sourceObservationIds.includes(id)) && !a.sourceMeasurementIds.some(id => b.sourceMeasurementIds.includes(id))
 }
 export function measurementRecords(observations: ClinicalObservation[], measurements: AutoMeasurement[]): FunctionalMeasurement[] {
-  const computed: FunctionalMeasurement[] = measurements.map(m => ({ id: `automatic_measurement:${m.plane}:${m.id}`, value: Number.isFinite(m.numericValue) ? (m.numericValue === 0 ? 0 : m.numericValue) : undefined,
+  const computed: FunctionalMeasurement[] = measurements.filter(m => m.reportEligible !== false).map(m => ({ id: `automatic_measurement:${m.plane}:${m.id}`, value: Number.isFinite(m.numericValue) ? (m.numericValue === 0 ? 0 : m.numericValue) : undefined,
     unit: m.unit, plane: m.plane, origin: 'computed_geometry' as const, label: m.label, available: Number.isFinite(m.numericValue) }))
   const known = new Set(computed.map(m => m.id))
   for (const o of observations) if (o.quantitative && Number.isFinite(o.quantitative.value)) {

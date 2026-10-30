@@ -28,6 +28,8 @@ export interface SpineSegmentDeviation {
 }
 
 export interface SagittalSpineSegmentMetric {
+  direction: ClinicalDirection
+  region: 'cervicale' | 'toracica' | 'toraco_lombare' | 'lombare' | 'lombosacrale'
   segmentLabel: string
   alterationId?: string
   magnitude: number
@@ -146,7 +148,10 @@ export function computePosteriorSpineSegmentDeviations(
 
     if (!passesDetectionThreshold(maxMag, threshold)) continue
 
-    const direction = lateralDirection(maxDelta)
+    const right = findLm(landmarks, 'psis_dx') ?? findLm(landmarks, 'acromion_post_dx')
+    const left = findLm(landmarks, 'psis_sx') ?? findLm(landmarks, 'acromion_post_sx')
+    const mirrored = right && left && right.position.x < left.position.x
+    const direction = lateralDirection(mirrored ? -maxDelta : maxDelta)
     const quantitative = percentQuantitative(maxMag)
     results.push({
       segment: def.segment,
@@ -203,6 +208,8 @@ export function computeSagittalSpineSegmentMetrics(
     const quantitative = percentQuantitative(mag)
     const direction = shift >= 0 ? 'anteriore' : 'posteriore'
     metrics.push({
+      direction,
+      region: /C7/i.test(label) ? 'cervicale' : /T1[012]/i.test(label) && /L/i.test(label) ? 'toraco_lombare' : /T/i.test(label) ? 'toracica' : /S/i.test(label) ? 'lombosacrale' : 'lombare',
       segmentLabel: label,
       magnitude: mag,
       severity: severityFromDetectionThreshold(mag, threshold),

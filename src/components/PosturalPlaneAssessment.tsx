@@ -1,3 +1,4 @@
+import { imageAspectRatio } from '@/utils/imageAspectRatio'
 import { Activity } from 'lucide-react'
 import { getPlaneConfig } from '@/data/planes'
 import type {
@@ -15,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 interface PosturalPlaneAssessmentProps {
   planeAssessments: PlaneAssessment[]
-  photos: { plane: AnatomicalPlane; annotations: import('@/types').PhotoAnnotations }[]
+  photos: { plane: AnatomicalPlane; dataUrl?: string; annotations: import('@/types').PhotoAnnotations }[]
   onChange: (assessments: PlaneAssessment[]) => void
 }
 
@@ -131,6 +132,7 @@ export function PosturalPlaneAssessment({
                   plane={plane}
                   assessment={assessment}
                   landmarks={landmarks}
+                  imageAspectRatio={imageAspectRatio(photos.find(p => p.plane === plane)?.dataUrl)}
                   onAssessmentChange={updateAssessment}
                 />
 

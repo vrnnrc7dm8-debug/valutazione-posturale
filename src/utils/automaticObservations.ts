@@ -21,17 +21,22 @@ const TRANSVERSE_MAPPING: Record<string, { phenomenon: string; district: Clinica
   trasv_piede_sx: { phenomenon: 'asse_podalico', district: 'arto_inferiore' },
 }
 
+export function clinicalMappingForMeasurement(m: AutoMeasurement) {
+  return m.clinicalSuggestion ?? (m.plane === 'trasverso' ? TRANSVERSE_MAPPING[m.id] : FRONTAL_MAPPING[m.id])
+}
+
 /** Classification thresholds belong to the measurement engine, never to the UI. */
 export function observationsFromAutoMeasurements(measurements: AutoMeasurement[]): ClinicalObservation[] {
   const observations = new Map<string, ClinicalObservation>()
   for (const m of measurements) {
-    const mapping = m.plane === 'trasverso' ? m.clinicalSuggestion ?? TRANSVERSE_MAPPING[m.id] : FRONTAL_MAPPING[m.id]
-    if (!['frontale_anteriore', 'trasverso'].includes(m.plane) || !mapping || m.severity === 'normale' || !Number.isFinite(m.numericValue) || !m.unit) continue
+    const mapping = clinicalMappingForMeasurement(m)
+    if (m.reportEligible === false || !mapping || m.severity === 'normale' || !Number.isFinite(m.numericValue) || !m.unit) continue
     const id = `automatic_measurement:${m.plane}:${m.id}`
     observations.set(id, {
-      id, plane: m.plane, ...mapping, descriptor: m.plane === 'trasverso' ? m.clinicalSuggestion?.descriptor ?? 'rotation' : observationDescriptor(mapping.phenomenon, m.plane),
+      id, plane: m.plane, ...mapping, descriptor: m.clinicalSuggestion?.descriptor ?? (m.plane === 'trasverso' ? 'rotation' : observationDescriptor(mapping.phenomenon, m.plane)),
+      anatomicalDetails: m.clinicalSuggestion?.anatomicalDetails,
       side: m.side ?? (m.id.endsWith('_destro') ? 'destro' : m.id.endsWith('_sinistro') ? 'sinistro' : undefined),
-      direction: m.plane === 'trasverso' ? m.clinicalSuggestion?.direction : mapping.phenomenon === 'rotazione_arto_inferiore' && !['rotazione_dx', 'rotazione_sx'].includes(m.direction ?? '') ? undefined : m.direction, severity: m.severity,
+      direction: m.clinicalSuggestion ? m.clinicalSuggestion.direction : mapping.phenomenon === 'rotazione_arto_inferiore' && !['rotazione_dx', 'rotazione_sx'].includes(m.direction ?? '') ? undefined : m.direction, severity: m.severity,
       transverseRelation: m.plane === 'trasverso' ? m.clinicalSuggestion?.transverseRelation : undefined,
       quantitative: { value: m.numericValue!, unit: m.unit },
       source: 'automatic_measurement', sourceIds: [id], status: 'suggested',

@@ -1,5 +1,6 @@
+import { imageAspectRatio } from './imageAspectRatio'
 import { formatTransverseRelation, isTransverseRelation } from '@/data/transverseRelations'
-import { runClinicalPipeline, formatPattern } from './clinicalPipeline'
+import { runClinicalPipeline, clinicalReportPipeline, formatPattern } from './clinicalPipeline'
 import { formatQuantitativeValue } from '@/data/clinicalThresholds'
 import {
   formatDirectionLabel,
@@ -69,7 +70,7 @@ export function getReportLandmarks(photo: PhotoSlot) {
 
 function collectReportMeasurements(photos: PhotoSlot[]): AutoMeasurement[] {
   return photos.filter(photo => resolvePersistablePhotoDataUrl(photo)).flatMap(photo =>
-    computeAutoMeasurements(photo.plane, getReportLandmarks(photo).map(lm => ({ ...lm, landmarkId: normalizeLandmarkId(lm), plane: photo.plane })))
+    computeAutoMeasurements(photo.plane, getReportLandmarks(photo).map(lm => ({ ...lm, landmarkId: normalizeLandmarkId(lm), plane: photo.plane })), { imageAspectRatio: imageAspectRatio(resolvePersistablePhotoDataUrl(photo)) })
       .filter(m => m.id !== 'need_more_lm' && m.numericValue !== undefined && Number.isFinite(m.numericValue)),
   )
 }
@@ -256,12 +257,12 @@ export function generateClinicalReport(
   defaultSubjectHeightCm?: number,
 ): ClinicalReportData {
   const autoMeasurements = collectReportMeasurements(photos)
-  const pipeline = runClinicalPipeline(planeAssessments, autoMeasurements)
+  const pipeline = clinicalReportPipeline(runClinicalPipeline(planeAssessments, autoMeasurements), autoMeasurements)
   planeAssessments = pipeline.consolidatedPlanes
   myofascialResults = analyzeAllPlanes(pipeline.myersPlanes)
 
   const planeScores = planeAssessments.map((pa) =>
-    scorePlaneAssessment(pa, autoMeasurements.filter(m => m.plane !== 'frontale_anteriore')),
+    scorePlaneAssessment(pa, autoMeasurements, pipeline.patternRecognition),
   )
   const structuredFindings: ClinicalFinding[] = []
   const findingsByPlane = new Map(
@@ -279,7 +280,7 @@ export function generateClinicalReport(
     const allLandmarks = photo ? countLandmarks(normalizeLandmarkCollection(photo.annotations.landmarks, plane)) : 0
     const score = planeScores.find((s) => s.plane === plane)
     const planeAlts = pa?.alterations ?? []
-    const planeAuto = autoMeasurements.filter((m) => m.plane === plane)
+    const planeAuto = autoMeasurements.filter((m) => m.plane === plane && m.reportEligible !== false)
     const drawnMeasurements = annotationMeasurements(photo)
     const planeMyers = analyzeAllPlanes(
       pipeline.myersPlanes.filter(p => p.plane === plane),
@@ -316,7 +317,7 @@ export function generateClinicalReport(
   const rankedTissueFindings: ReturnType<typeof analyzeAllTissues> = []
 
   const baseReport: ClinicalReportData = {
-    clinicalPipeline: { functionalModel: pipeline.functionalModel, inferences: pipeline.inferences, observations: pipeline.observations.filter(o => o.status !== 'excluded' && o.status !== 'suggested'), patterns: pipeline.patterns, tissues: pipeline.tissues },
+    clinicalPipeline: { patternRecognition: pipeline.patternRecognition, functionalModel: pipeline.functionalModel, inferences: pipeline.inferences, observations: pipeline.observations.filter(o => o.status !== 'excluded' && o.status !== 'suggested'), patterns: pipeline.patterns, tissues: pipeline.tissues },
     sections,
     analyzedPlanes: sections.map((s) => s.planeLabel),
     mainAlterations: allAlterations.map((a) => {
@@ -383,7 +384,7 @@ export function runFullAnalysis(
   const myofascialResults = analyzeAllPlanes(pipeline.myersPlanes)
 
   const planeScores = consolidatedPlanes.map((pa) =>
-    scorePlaneAssessment(pa, autoMeasurements.filter(m => m.plane !== 'frontale_anteriore')),
+    scorePlaneAssessment(pa, autoMeasurements, pipeline.patternRecognition),
   )
   const report = generateClinicalReport(
     planeAssessments,

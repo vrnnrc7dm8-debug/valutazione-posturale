@@ -1,3 +1,5 @@
+import { unique } from './functionalEvidence'
+import { buildMultiplanarGlobalPatterns, globalMyersSupport } from './patternRecognition'
 import { buildFunctionalModel } from './functionalNetworkEngine'
 import { normalizeTransverseRelation, transverseRelationSide, formatTransverseRelation, isTransverseRelation } from '@/data/transverseRelations'
 import { hasTransverseInferenceDirection } from '@/data/clinicalOperators'
@@ -128,6 +130,7 @@ export function runClinicalPipeline(planes: PlaneAssessment[], measurements: Aut
     ...observationsFromAssessments(planes), ...planes.flatMap(p => (p.observations ?? []).map(o => normalizeTransverseRelation(o, p.plane, o.phenomenon, o.sourceIds))),
   ], observationsFromAutoMeasurements(measurements))
   const patterns = consolidateObservations(observations)
+  const patternRecognition = buildMultiplanarGlobalPatterns(observations, measurements, patterns)
   const currentTransverse = observationsFromAutoMeasurements(measurements).filter(o => o.plane === 'trasverso')
   const matchesCurrent = (p: PosturalPattern) => currentTransverse.some(o => o.phenomenon === p.phenomenon && o.side === p.side && o.descriptor === p.descriptor && o.transverseRelation?.reference === p.transverseRelation?.reference && (o.transverseRelation?.referenceSide ?? (o.side === 'destro' ? 'dx' : o.side === 'sinistro' ? 'sx' : o.side)) === (p.transverseRelation?.referenceSide ?? (p.side === 'destro' ? 'dx' : p.side === 'sinistro' ? 'sx' : p.side)) && o.quantitative?.value === p.quantitative?.value)
   const contexts = new Map<string, NonNullable<AlterationSelection['myersContext']>>()
@@ -146,11 +149,15 @@ export function runClinicalPipeline(planes: PlaneAssessment[], measurements: Aut
   }
   const supported = (p: PosturalPattern) => p.plane !== 'trasverso' || (p.transverseRelation?.reference !== 'scapulum_ileo' || !p.side || p.side === 'bilaterale' || p.transverseRelation.orientation?.startsWith(p.side === 'destro' ? 'dx_' : 'sx_')) && matchesCurrent(p) && (hasTransverseInferenceDirection(p.descriptor, p.direction, p.transverseRelation) || contexts.has(p.id))
   const inferences = inferMyersFromPatterns(patterns.filter(supported), contexts)
+  for (const inference of inferences) for (const line of inference.lines) {
+    const supporting = globalMyersSupport(patternRecognition, inference.instanceId, line.lineId)
+    if (supporting.length) line.corroboratedBy = unique([...(line.corroboratedBy ?? []), ...supporting])
+  }
   const tissues = consolidateTissueEvidence(supportedTissueEvidence(patterns, inferences))
   const consolidatedPlanes = planes.map(pa => ({ plane: pa.plane, alterations: patterns.filter(p => p.plane === pa.plane).map(patternSelection) }))
   const myersPlanes = planes.map(pa => ({ plane: pa.plane, alterations: patterns.filter(p => p.plane === pa.plane && supported(p)).map(p => ({ ...patternSelection(p), myersContext: contexts.get(p.id) })) }))
   const functionalModel = buildFunctionalModel(observations, patterns, tissues, inferences, measurements)
-  return { observations, patterns, inferences, tissues, consolidatedPlanes, myersPlanes, functionalModel }
+  return { observations, patterns, inferences, tissues, consolidatedPlanes, myersPlanes, functionalModel, patternRecognition }
 }
 
 export function formatPattern(p: PosturalPattern): string {
@@ -203,4 +210,25 @@ export function formatTissueSupport(tissue: TissueFunctionalState, patterns: Pos
     const pattern = patterns.find(p => p.id === s.patternId)
     return `Origine: ${pattern ? formatPattern(pattern) : s.patternId} · Regione: ${s.region} · Distretto: ${s.proximity === 'local' ? 'locale' : s.proximity === 'adjacent' ? 'adiacente corroborato' : 'remoto corroborato'} · Confidenza fonte: ${Math.round(s.confidence * 100)}%`
   })
+}
+
+/** Only new reports are filtered; historical snapshots and the clinical editor remain untouched. */
+export function clinicalReportPipeline(pipeline: ReturnType<typeof runClinicalPipeline>, measurements: AutoMeasurement[]) {
+  const resolved = (value: ClinicalObservation | PosturalPattern) => {
+    if (value.anatomicalDetails?.region === 'indeterminata') return false
+    if ((value.direction as string | undefined) === 'indeterminabile') return false
+    if (value.transverseRelation && (value.transverseRelation.reference === 'non_specificato' || !transverseRelationSide(value.transverseRelation))) return false
+    if (value.descriptor === 'rotation' && !['rotazione_dx', 'rotazione_sx'].includes(value.direction ?? '')) return false
+    return true
+  }
+  const patterns = pipeline.patterns.filter(resolved)
+  const ids = new Set(patterns.map(p => p.id))
+  const observations = pipeline.observations.filter(resolved)
+  const inferences = pipeline.inferences.filter(i => ids.has(i.instanceId))
+  const tissues = consolidateTissueEvidence(supportedTissueEvidence(patterns, inferences))
+  return { ...pipeline, observations, patterns, inferences, tissues,
+    consolidatedPlanes: pipeline.consolidatedPlanes.map(pa => ({ ...pa, alterations: pa.alterations.filter(a => ids.has(a.instanceId)) })),
+    myersPlanes: pipeline.myersPlanes.map(pa => ({ ...pa, alterations: pa.alterations.filter(a => ids.has(a.instanceId)) })),
+    functionalModel: buildFunctionalModel(observations, patterns, tissues, inferences, measurements),
+  }
 }

@@ -1,3 +1,4 @@
+import { analyzePosterior, type PosteriorAnalysisOptions } from './posteriorAnalysis'
 import { analyzeTransverse } from './transverseAnalysis'
 import {
   CLINICAL_THRESHOLDS,
@@ -33,7 +34,9 @@ export interface BiomechanicalAxis {
 }
 
 export interface AutoMeasurement {
-  clinicalSuggestion?: { phenomenon: string; district: import('@/types').ClinicalDistrict; descriptor: import('@/types').Descriptor; direction?: ClinicalDirection; transverseRelation?: import('@/data/transverseRelations').TransverseRelation }
+  reportEligible?: boolean
+  patternEvidence?: import('@/types/patternRecognition').GeometricPatternEvidence
+  clinicalSuggestion?: import('@/types/patternRecognition').ElementarySuggestion & { transverseRelation?: import('@/data/transverseRelations').TransverseRelation }
   side?: Side
   direction?: ClinicalDirection
   observationNote?: string
@@ -106,7 +109,14 @@ export function buildBiomechanicalAxes(
     if (calcD && calcS) add('bicalcaneare', 'Linea bicalcaneare', pos(calcD), pos(calcS), '#f59e0b')
     const c7 = findLm(landmarks, 'cervicale_c7')
     const sac = findLm(landmarks, 'apice_sacrale', 'sacro_medio')
-    if (c7 && sac) add('asse_rachide', 'Occipite-C7-sacro', pos(c7), pos(sac), '#ef4444')
+    if (c7 && sac) add('asse_rachide', 'C7-sacro', pos(c7), pos(sac), '#ef4444')
+    const spineIds = ['cervicale_c7', 'toracico_t6', 'toracico_t11', 'lombare_l2']
+    for (let i = 0; i < spineIds.length - 1; i++) {
+      const a = findLm(landmarks, spineIds[i]), b = findLm(landmarks, spineIds[i + 1])
+      if (a && b) add(`polilinea_post_${i}`, 'Polilinea rachidea posteriore', pos(a), pos(b), '#ef4444')
+    }
+    const l2 = findLm(landmarks, 'lombare_l2')
+    if (c7 && l2) add('corda_c7_l2', 'Corda di riferimento C7–L2', pos(c7), pos(l2), '#a855f7')
   }
 
   if (plane === 'sagittale_destro' || plane === 'sagittale_sinistro') {
@@ -125,6 +135,7 @@ export function buildBiomechanicalAxes(
 export function computeAutoMeasurements(
   plane: AnatomicalPlane,
   landmarks: PlacedLandmark[],
+  options: PosteriorAnalysisOptions = {},
 ): AutoMeasurement[] {
   if (plane === 'trasverso') return analyzeTransverse(landmarks).measurements
   const results: AutoMeasurement[] = []
@@ -194,6 +205,7 @@ export function computeAutoMeasurements(
   }
 
   if (plane === 'frontale_posteriore') {
+    results.push(...analyzePosterior(landmarks, options).measurements)
     const psisD = findLm(landmarks, 'psis_dx')
     const psisS = findLm(landmarks, 'psis_sx')
     if (psisD && psisS) {
@@ -229,17 +241,12 @@ export function computeAutoMeasurements(
       })
     }
 
+
+    // Preserve the previous vertical-reference measures alongside the chord/curve analysis.
     for (const seg of computePosteriorSpineSegmentDeviations(landmarks)) {
-      results.push({
-        id: `spine_post_${seg.segment}`,
-        label: seg.label,
-        value: `${seg.quantitative.value}% verso ${seg.direction}`,
-        severity: seg.severity,
-        plane,
-        numericValue: seg.quantitative.value,
-        unit: seg.quantitative.unit,
-        suggestion: seg.reason,
-      })
+      results.push({ id: `spine_post_${seg.segment}`, label: seg.label,
+        value: `${seg.quantitative.value}% verso ${seg.direction}`, severity: seg.severity, plane,
+        numericValue: seg.quantitative.value, unit: seg.quantitative.unit, suggestion: seg.reason })
     }
   }
 
@@ -316,6 +323,8 @@ export function computeAutoMeasurements(
         const q = percentQuantitative(fwd)
         results.push({
           id: `fhp_${plane}`,
+          direction: 'anteriore',
+          clinicalSuggestion: { phenomenon: 'anteriorizzazione_capo', district: 'cranio_cervicale', descriptor: 'shift', direction: 'anteriore' },
           label: 'Forward head / anteriorizzazione stimata',
           value: `Shift anteriore ${q.value}%`,
           severity: severityFromNormalizedMagnitude(
@@ -330,10 +339,12 @@ export function computeAutoMeasurements(
       }
     }
 
-    for (const metric of computeSagittalSpineSegmentMetrics(plane, landmarks).slice(0, 4)) {
+    for (const metric of computeSagittalSpineSegmentMetrics(plane, landmarks)) {
       results.push({
         id: `spine_sag_${metric.segmentLabel.replace(/[^a-z0-9]/gi, '_')}`,
         label: `Catena rachide ${metric.segmentLabel}`,
+        direction: metric.direction,
+        clinicalSuggestion: { phenomenon: 'deviazione_rachidea', district: metric.region, descriptor: 'shift', direction: metric.direction, anatomicalDetails: { region: metric.region } },
         value: metric.reason,
         severity: metric.severity,
         plane,

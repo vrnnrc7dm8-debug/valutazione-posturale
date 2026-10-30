@@ -1,3 +1,4 @@
+import { GlobalPatternPanel } from './GlobalPatternPanel'
 import { FunctionalNetworkPanel } from './FunctionalNetworkPanel'
 import { formatPattern, formatTissueState, observationSummaries, formatMyersEvidence, formatTissueSupport } from '@/utils/clinicalPipeline'
 import { MYOFASCIAL_LINES } from '@/data/myofascialLines'
@@ -236,6 +237,7 @@ export function ClinicalReport({ assessment, generating = false, error = '', sta
             <details><summary className="font-semibold">D. Compatibilità locali miofasciali (non pattern globali)</summary>
               {report.clinicalPipeline.inferences ? formatMyersEvidence(report.clinicalPipeline.patterns, report.clinicalPipeline.inferences).map((text, i) => <p key={i}>{text}</p>) : report.alteredMeridians.map(m => <p key={m.lineId}>{MYOFASCIAL_LINES[m.lineId].name} · {m.prevalentSide}</p>)}
             </details>
+            {report.clinicalPipeline.patternRecognition && <GlobalPatternPanel result={report.clinicalPipeline.patternRecognition} />}
             {report.clinicalPipeline.functionalModel ? <FunctionalNetworkPanel model={report.clinicalPipeline.functionalModel} /> : <section><h3 className="font-semibold">E. Tessuti correlati</h3>
               {report.clinicalPipeline.tissues.map(t => <div key={`${t.tissueId}:${t.side}`} className="my-2 text-sm"><p>{formatTissueState(t)}</p>{formatTissueSupport(t, report.clinicalPipeline!.patterns).map((text, i) => <p key={i} className="text-xs">{text}</p>)}<p className="text-xs">Linee: {t.sourceLineIds.map(id => MYOFASCIAL_LINES[id].name).join(', ')}</p><p className="text-xs">Evidenze: {t.evidence.map(id => { const p = report.clinicalPipeline!.patterns.find(p => p.id === id); return p ? formatPattern(p) : id }).join('; ')}</p></div>)}
             </section>}

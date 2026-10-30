@@ -1,3 +1,4 @@
+import { GlobalPatternPanel } from './GlobalPatternPanel'
 import { FunctionalNetworkPanel } from './FunctionalNetworkPanel'
 import { AutomaticObservationsPanel } from './AutomaticObservationsPanel'
 import { isReportEligibleLandmark } from '@/utils/landmarkValidation'
@@ -18,6 +19,7 @@ interface PlaneClinicalPanelProps {
   plane: AnatomicalPlane
   assessment: PlaneAssessment
   landmarks: PlacedLandmark[]
+  imageAspectRatio?: number
   onAssessmentChange?: (next: PlaneAssessment) => void
 }
 
@@ -26,16 +28,17 @@ export function PlaneClinicalPanel({
   assessment,
   landmarks,
   onAssessmentChange,
+  imageAspectRatio,
 }: PlaneClinicalPanelProps) {
   const config = getPlaneConfig(plane)
   const normalized = landmarks.filter(isReportEligibleLandmark).map((l) => ({
     ...l,
     landmarkId: l.landmarkId ?? (l as { type?: string }).type ?? '',
   }))
-  const autoMs: AutoMeasurement[] = computeAutoMeasurements(plane, normalized)
+  const autoMs: AutoMeasurement[] = computeAutoMeasurements(plane, normalized, { imageAspectRatio })
   const pipeline = runClinicalPipeline([assessment], autoMs)
   const consolidated = pipeline.consolidatedPlanes[0]
-  const score = scorePlaneAssessment(consolidated, plane === 'frontale_anteriore' ? [] : autoMs)
+  const score = scorePlaneAssessment(consolidated, autoMs, pipeline.patternRecognition)
 
   return (
     <Card className="border-clinical-200 bg-clinical-50/30">
@@ -121,6 +124,7 @@ export function PlaneClinicalPanel({
           <details><summary className="mt-2 font-semibold">Dati tessutali precedenti (compatibilità)</summary>
           {pipeline.tissues.map(t => <div key={`${t.tissueId}:${t.side}`} className="my-2 text-xs"><p>{formatTissueState(t)}</p>{formatTissueSupport(t, pipeline.patterns).map((text, i) => <p key={i}>{text}</p>)}</div>)}
           </details>
+          <GlobalPatternPanel result={pipeline.patternRecognition} debug />
           <FunctionalNetworkPanel model={pipeline.functionalModel} />
         </div>
 

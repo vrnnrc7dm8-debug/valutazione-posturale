@@ -18,8 +18,8 @@ export function FunctionalNetworkPanel({ model }: { model: FunctionalModel }) {
       <h4 className="font-semibold">Confronto omolaterale e controlaterale</h4>
       {model.comparisons.map(c => <div key={c.id} className="my-2"><p>{c.family}: {COMPARISON_LABELS[c.relation]}{c.normalSide ? ` · lato ${c.normalSide} nei limiti geometrici registrati` : ''}</p>{c.consequences.map(text => <p key={text} className="text-xs">{text}</p>)}<Evidence value={c} /></div>)}
     </details>
-    <details><summary>PATTERN GLOBALI — rete di tensegrità, ipotesi ({model.globalPatterns.length})</summary>
-      {!model.globalPatterns.length && <p>Nessun pattern globale sufficientemente supportato. Nessuna propagazione automatica.</p>}
+    <details><summary>PATTERN GLOBALI — relazioni funzionali con riscontri clinici corroborati ({model.globalPatterns.length})</summary>
+      {!model.globalPatterns.length && <p>Nessuna relazione funzionale globale sufficientemente corroborata da fonti cliniche. Le ipotesi geometriche sono elencate nel riconoscimento posturale. Nessuna propagazione automatica.</p>}
       {model.globalPatterns.map(g => <div key={g.id} className="my-2"><p className="font-medium">{g.kind === 'global_tensegrity' ? 'Pattern globale di tensegrità' : g.kind === 'torsional' ? 'Pattern torsionale / crociato' : 'Continuità regionale supportata'}</p><p>Direzione: {g.direction ?? 'non determinabile'} · {functionalPercent(g.index)} · Coerenza multiplanare: {g.planes.length}/3</p><p>Componenti: {g.lineIds.map(id => MYOFASCIAL_LINES[id].name).join(', ') || 'da verificare'}</p>{g.consequences.map(text => <p key={text} className="text-xs">{text}</p>)}<Evidence value={g} /></div>)}
     </details>
     <details><summary>MYERS — binari e distribuzione segmentaria ({model.lines.length})</summary>

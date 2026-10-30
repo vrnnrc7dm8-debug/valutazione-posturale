@@ -1681,6 +1681,7 @@ function PhotoAnnotationEditorInner({
                 onReject={id => removeLandmarkCascade(id)}
                 onMove={id => { setTool('select'); setPanImageMode(false); setSelectedLmId(id) }} />
               <AnnotationClinicalPanel
+                imageAspectRatio={imageSize.w && imageSize.h ? imageSize.w / imageSize.h : undefined}
                 plane={plane}
                 assessment={planeAssessment}
                 landmarkCollection={annotations.landmarks}

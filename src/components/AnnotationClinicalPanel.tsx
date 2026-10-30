@@ -22,6 +22,7 @@ interface AnnotationClinicalPanelProps {
   landmarkCollection: StructuredLandmarkCollection
   onAssessmentChange: (next: PlaneAssessment) => void
   calibration?: PhotoCalibration
+  imageAspectRatio?: number
   subjectHeightCm?: number
   gravityLineX?: number
 }
@@ -34,6 +35,7 @@ export function AnnotationClinicalPanel({
   calibration,
   subjectHeightCm,
   gravityLineX,
+  imageAspectRatio,
 }: AnnotationClinicalPanelProps) {
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const config = getPlaneConfig(plane)
@@ -95,6 +97,7 @@ export function AnnotationClinicalPanel({
           plane={plane}
           assessment={assessment}
           landmarks={clinicalLandmarks}
+          imageAspectRatio={imageAspectRatio}
           onAssessmentChange={onAssessmentChange}
         />
 

@@ -1,3 +1,4 @@
+import { recognizedPatternReportLines } from './globalPatternFormat'
 import { functionalModelToLines } from './functionalFormat'
 import { formatPattern, formatTissueState, observationSummaries, formatMyersEvidence, formatTissueSupport } from './clinicalPipeline'
 import { isReportStale } from '@/utils/reportGeneration'
@@ -135,6 +136,7 @@ export function buildTextReportLines(assessment: Assessment): string[] | null {
     header.push(...observationSummaries(pipeline.observations))
     header.push('C. PATTERN CONSOLIDATI', ...pipeline.patterns.map(formatPattern))
     header.push('D. IPOTESI MYOFASCIALI', ...(pipeline.inferences ? formatMyersEvidence(pipeline.patterns, pipeline.inferences) : report.alteredMeridians.map(m => `${MYOFASCIAL_LINES[m.lineId].name} (${m.prevalentSide})`)))
+    if (pipeline.patternRecognition) header.push(...recognizedPatternReportLines(pipeline.patternRecognition))
     if (pipeline.functionalModel) header.push(...functionalModelToLines(pipeline.functionalModel))
     else header.push('E. TESSUTI CORRELATI')
     for (const tissue of pipeline.functionalModel ? [] : pipeline.tissues) {

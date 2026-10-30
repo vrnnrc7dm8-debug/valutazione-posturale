@@ -160,3 +160,7 @@ confidenza indipendente dalla severità e riapertura assessment-v2.
 La pipeline aggiunge ora lo snapshot opzionale `functionalModel`: confronti
 bilaterali, distribuzione segmentaria e pattern globali con provenienza.
 Formule, limiti ed esempi: [rete funzionale](functional-network.md).
+
+Il [riconoscimento regionale e globale](global-pattern-recognition.md) precede
+ora Myers e include il frontale posteriore completo, le firme multiplanari e
+la priorità per regione. Le ipotesi geometriche restano distinte dalle conferme cliniche.
