@@ -143,8 +143,10 @@ it('il contesto scapolo-pelvico alimenta Myers e il riscontro calcaneare opziona
     expect(inference.lines.every(l => l.lineId !== 'spiral_right' && l.contextPatternIds?.length === 2)).toBe(true)
     expect(inference.lines.every(l => ['anteposizione', 'retroposizione'].includes(l.sourceDescriptor!))).toBe(true)
   }
+  const mildAP = run([...ap.map(o => ({ ...o, severity: 'lieve' as const })), girdles, foot]).inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId))
   const changedSeverity = run([...ap.map(o => ({ ...o, severity: 'severo' as const })), girdles, foot])
-  expect(changedSeverity.inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId)).map(i => i.lines.map(l => l.score))).toEqual(apInferences.map(i => i.lines.map(l => l.score)))
+  const severeAP = changedSeverity.inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId))
+  expect(severeAP.every((i, index) => i.lines.every((line, l) => line.score > (mildAP[index].lines.find(m => m.lineId === line.lineId)?.score ?? 0) && line.side === apInferences[index].lines[l].side))).toBe(true)
   const primary = run([...ap, girdles]).inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId))
   const discordant = run([...ap, girdles, { ...foot, transverseRelation: { ...foot.transverseRelation, orientation: 'dx_anteposto' } }]).inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId))
   expect(primary).toHaveLength(4); expect(discordant).toHaveLength(4)

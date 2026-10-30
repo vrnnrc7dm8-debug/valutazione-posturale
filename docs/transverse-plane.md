@@ -76,8 +76,10 @@ in Myers. Ante/retro non implicano da soli linee rotatorie e non diventano seman
 `rotation`. Dopo conferma contribuiscono alle Spirali e, dove appropriato, alle
 Funzionali attraverso un contesto complessivo: è sufficiente una relazione
 scapolo-pelvica confermata, con orientamento anatomico esplicito e supportata da misure correnti.
-Lato e intensità derivano dalle relazioni scapolo-pelviche concordanti,
-non dal lato, dal segno o dalla severità del singolo reperto ante/retro.
+Lato e intensità del contesto derivano dalle relazioni scapolo-pelviche concordanti,
+non dal lato o dal segno del singolo reperto ante/retro. La severità del reperto
+pesa inoltre il contributo funzionale in modo monotono, senza cambiare il lato
+o la confidenza del contesto (vedere [rete funzionale](functional-network.md)).
 Direzioni scapolo-pelviche discordanti o misure primarie mancanti sospendono questo
 contributo. Il riscontro calcaneare/podalico è opzionale: se confermato e sostenuto
 da misure correnti modula la confidenza (45% senza riscontro, 50% concordante,

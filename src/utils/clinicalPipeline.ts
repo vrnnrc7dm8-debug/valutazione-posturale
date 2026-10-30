@@ -1,3 +1,4 @@
+import { buildFunctionalModel } from './functionalNetworkEngine'
 import { normalizeTransverseRelation, transverseRelationSide, formatTransverseRelation, isTransverseRelation } from '@/data/transverseRelations'
 import { hasTransverseInferenceDirection } from '@/data/clinicalOperators'
 import { observationDescriptor, formatOperatorDirection } from '@/data/clinicalOperators'
@@ -28,7 +29,7 @@ export function observationsFromAssessments(planes: PlaneAssessment[]): Clinical
     return {
       id: a.instanceId, plane: pa.plane, district: a.district ?? definition?.district ?? 'globale',
       phenomenon, descriptor: a.descriptor, side: isSpinalPhenomenon(a.alterationId) ? undefined : a.side, direction: a.descriptor === 'compenso' ? undefined : a.direction, severity: a.severity,
-      transverseRelation: a.transverseRelation, quantitative: a.quantitative, source: a.source === 'manual' || !a.source ? 'manual' : 'automatic_suggestion',
+      functionalTissueFindings: a.functionalTissueFindings, transverseRelation: a.transverseRelation, quantitative: a.quantitative, source: a.source === 'manual' || !a.source ? 'manual' : 'automatic_suggestion',
       sourceIds: [a.suggestionKey ?? a.instanceId], status: a.status ?? (a.source === 'suggested' ? 'suggested' : 'confirmed'),
       anatomicalDetails: phenomenon === 'deviazione_rachidea'
         ? { region: region ?? 'indeterminata', convexity: 'indeterminata', ...a.anatomicalDetails, ...(a.descriptor === 'bend' && (!a.anatomicalDetails?.convexity || a.anatomicalDetails.convexity === 'indeterminata') && (a.direction === 'dx' || a.direction === 'sx') ? { proposedConvexity: a.direction === 'sx' ? 'dx' as const : 'sx' as const } : {}) } : a.anatomicalDetails,
@@ -148,7 +149,8 @@ export function runClinicalPipeline(planes: PlaneAssessment[], measurements: Aut
   const tissues = consolidateTissueEvidence(supportedTissueEvidence(patterns, inferences))
   const consolidatedPlanes = planes.map(pa => ({ plane: pa.plane, alterations: patterns.filter(p => p.plane === pa.plane).map(patternSelection) }))
   const myersPlanes = planes.map(pa => ({ plane: pa.plane, alterations: patterns.filter(p => p.plane === pa.plane && supported(p)).map(p => ({ ...patternSelection(p), myersContext: contexts.get(p.id) })) }))
-  return { observations, patterns, inferences, tissues, consolidatedPlanes, myersPlanes }
+  const functionalModel = buildFunctionalModel(observations, patterns, tissues, inferences, measurements)
+  return { observations, patterns, inferences, tissues, consolidatedPlanes, myersPlanes, functionalModel }
 }
 
 export function formatPattern(p: PosturalPattern): string {

@@ -1,3 +1,4 @@
+import { FunctionalNetworkPanel } from './FunctionalNetworkPanel'
 import { AutomaticObservationsPanel } from './AutomaticObservationsPanel'
 import { isReportEligibleLandmark } from '@/utils/landmarkValidation'
 import { AlterationSelector } from './AlterationSelector'
@@ -100,10 +101,10 @@ export function PlaneClinicalPanel({
           onDecision={observation => onAssessmentChange({ ...assessment,
             observations: [...(assessment.observations ?? []).filter(o => o.id !== observation.id), observation],
           })} />}
-        {pipeline.inferences.some(i => i.lines.length) && <div>
-          <p className="text-xs font-semibold">Linee Myers ipotizzate e origine</p>
+        {pipeline.inferences.some(i => i.lines.length) && <details>
+          <summary className="text-xs font-semibold">Compatibilità locali Myers e origine (non pattern globali)</summary>
           <ul>{formatMyersEvidence(pipeline.patterns, pipeline.inferences).map((text, i) => <li key={i} className="my-1 text-xs">{text}</li>)}</ul>
-        </div>}
+        </details>}
 
         <div>
           <p className="font-semibold">Pattern consolidati</p>
@@ -117,8 +118,10 @@ export function PlaneClinicalPanel({
               const ids = new Set(pipeline.patterns.find(p => p.id === id)?.observationIds)
               onAssessmentChange({ ...assessment, alterations: assessment.alterations.filter(a => !ids.has(a.instanceId)), observations: assessment.observations?.filter(o => !ids.has(o.id)) })
             }} />}
-          <p className="mt-2 font-semibold">Tessuti correlati (ipotesi)</p>
+          <details><summary className="mt-2 font-semibold">Dati tessutali precedenti (compatibilità)</summary>
           {pipeline.tissues.map(t => <div key={`${t.tissueId}:${t.side}`} className="my-2 text-xs"><p>{formatTissueState(t)}</p>{formatTissueSupport(t, pipeline.patterns).map((text, i) => <p key={i}>{text}</p>)}</div>)}
+          </details>
+          <FunctionalNetworkPanel model={pipeline.functionalModel} />
         </div>
 
         {assessment.alterations.length > 0 && (

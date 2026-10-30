@@ -154,3 +154,9 @@ La suite `myersRegionalEvidence.test.ts` copre il caso cervicale shift DX +
 rotation SX + bend lombosacrale SX/convessità DX, priorità delle regole, regioni,
 filtro locale/remoto, corroborazione indipendente, assenza di duplicati,
 confidenza indipendente dalla severità e riapertura assessment-v2.
+
+## Rete funzionale integrata
+
+La pipeline aggiunge ora lo snapshot opzionale `functionalModel`: confronti
+bilaterali, distribuzione segmentaria e pattern globali con provenienza.
+Formule, limiti ed esempi: [rete funzionale](functional-network.md).

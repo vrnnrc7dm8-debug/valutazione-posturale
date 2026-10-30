@@ -312,6 +312,7 @@ export interface PhotoSlot {
 export type AlterationSource = 'manual' | 'suggested' | 'confirmed'
 
 export interface AlterationSelection {
+  functionalTissueFindings?: import('./clinical').ClinicalObservation['functionalTissueFindings']
   transverseRelation?: import('@/data/transverseRelations').TransverseRelation
   /** Ephemeral Myers context from confirmed scapular–pelvic relationships with optional distal evidence. */
   myersContext?: { side: Side; intensity: number; confidence: number; patternIds: string[]; distalEvidence?: 'absent' | 'concordant' | 'discordant' }
@@ -455,6 +456,7 @@ export interface PlaneReportSection {
 
 export interface ClinicalReportData {
   clinicalPipeline?: {
+    functionalModel?: import('./functional').FunctionalModel
     inferences?: AlterationMyersInference[]
     observations: import('./clinical').ClinicalObservation[]
     patterns: import('./clinical').PosturalPattern[]

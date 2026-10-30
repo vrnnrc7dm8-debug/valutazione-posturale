@@ -297,7 +297,7 @@ function scoreAlterationLineWeights(
   const rule: AlterationRule | undefined = plane === 'trasverso' && alteration.myersContext && ['anteposizione', 'retroposizione'].includes(alteration.descriptor)
     ? { alterationIds: [alteration.alterationId], descriptors: [alteration.descriptor], planes: ['trasverso'], lines: { spiral_right: 2.5, spiral_left: 2.5, functional_back: 2.5 } }
     : resolveMyersRule(plane, alteration)
-  const weight = (alteration.myersContext?.intensity ?? SEVERITY_WEIGHT[alteration.severity]) * (plane === 'trasverso' ? 0.5 : 1)
+  const weight = SEVERITY_WEIGHT[alteration.severity] * (alteration.myersContext ? .5 + alteration.myersContext.intensity / 2 : 1) * (plane === 'trasverso' ? 0.5 : 1)
   const scores = new Map<MyofascialLineId, number>()
 
   const addWeights = (lines: LineWeight, multiplier = 1) => {
@@ -411,13 +411,15 @@ export function analyzeMyofascialLinesForPlane(
 ): MyofascialLineResult[] {
   const aggregated = new Map<MyofascialLineId, { score: number; sides: Side[] }>()
 
-  const seenContexts = new Set<string>()
+  const contexts = new Map<string, AlterationSelection>()
+  const standalone: AlterationSelection[] = []
   for (const alt of alterations) {
-    if (alt.myersContext) {
-      const key = [...alt.myersContext.patternIds].sort().join('|')
-      if (seenContexts.has(key)) continue
-      seenContexts.add(key)
-    }
+    if (!alt.myersContext) { standalone.push(alt); continue }
+    const key = [...alt.myersContext.patternIds].sort().join('|')
+    const previous = contexts.get(key)
+    if (!previous || SEVERITY_WEIGHT[alt.severity] > SEVERITY_WEIGHT[previous.severity]) contexts.set(key, alt)
+  }
+  for (const alt of [...standalone, ...contexts.values()]) {
     const { scores } = scoreAlterationLineWeights(alt, plane)
     const effectiveSide = inferenceSide(alt)
     for (const [lineId, score] of scores) {

@@ -1,3 +1,4 @@
+import { functionalModelToLines } from './functionalFormat'
 import { formatPattern, formatTissueState, observationSummaries, formatMyersEvidence, formatTissueSupport } from './clinicalPipeline'
 import { isReportStale } from '@/utils/reportGeneration'
 import { anthropometryReportLines } from '@/utils/anthropometry'
@@ -134,8 +135,9 @@ export function buildTextReportLines(assessment: Assessment): string[] | null {
     header.push(...observationSummaries(pipeline.observations))
     header.push('C. PATTERN CONSOLIDATI', ...pipeline.patterns.map(formatPattern))
     header.push('D. IPOTESI MYOFASCIALI', ...(pipeline.inferences ? formatMyersEvidence(pipeline.patterns, pipeline.inferences) : report.alteredMeridians.map(m => `${MYOFASCIAL_LINES[m.lineId].name} (${m.prevalentSide})`)))
-    header.push('E. TESSUTI CORRELATI')
-    for (const tissue of pipeline.tissues) {
+    if (pipeline.functionalModel) header.push(...functionalModelToLines(pipeline.functionalModel))
+    else header.push('E. TESSUTI CORRELATI')
+    for (const tissue of pipeline.functionalModel ? [] : pipeline.tissues) {
       header.push(formatTissueState(tissue), ...formatTissueSupport(tissue, pipeline.patterns), `Linee: ${tissue.sourceLineIds.map(id => MYOFASCIAL_LINES[id].name).join(', ')}`,
         `Evidenze: ${tissue.evidence.map(id => { const p = pipeline.patterns.find(p => p.id === id); return p ? formatPattern(p) : id }).join('; ')}`)
     }

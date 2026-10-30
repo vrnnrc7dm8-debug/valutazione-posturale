@@ -57,3 +57,7 @@ export function tissueProximity(tissue: string, region: EvidenceRegion): TissueP
   if ((region === 'cervicale' && regions.includes('cintura_scapolare')) || (region === 'lombosacrale' && regions.includes('pelvico'))) return 'adjacent'
   return 'remote'
 }
+
+export function tissueRegions(name: string): EvidenceRegion[] {
+  return [...(TISSUE_REGIONS[name.toLowerCase()] ?? [])]
+}

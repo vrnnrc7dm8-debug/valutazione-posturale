@@ -81,6 +81,7 @@ export interface AnatomicalDetails {
   endLevel?: string
 }
 export interface ClinicalObservation {
+  functionalTissueFindings?: Array<{ tissueName: string; side: Side; state: 'concentric' | 'eccentric' | 'neutral'; method: string }>
   transverseRelation?: import('@/data/transverseRelations').TransverseRelation
   descriptor?: Descriptor
   id: string

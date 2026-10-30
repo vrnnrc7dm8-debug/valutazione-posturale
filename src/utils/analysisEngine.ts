@@ -316,7 +316,7 @@ export function generateClinicalReport(
   const rankedTissueFindings: ReturnType<typeof analyzeAllTissues> = []
 
   const baseReport: ClinicalReportData = {
-    clinicalPipeline: { inferences: pipeline.inferences, observations: pipeline.observations.filter(o => o.status !== 'excluded' && o.status !== 'suggested'), patterns: pipeline.patterns, tissues: pipeline.tissues },
+    clinicalPipeline: { functionalModel: pipeline.functionalModel, inferences: pipeline.inferences, observations: pipeline.observations.filter(o => o.status !== 'excluded' && o.status !== 'suggested'), patterns: pipeline.patterns, tissues: pipeline.tissues },
     sections,
     analyzedPlanes: sections.map((s) => s.planeLabel),
     mainAlterations: allAlterations.map((a) => {

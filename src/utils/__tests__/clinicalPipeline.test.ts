@@ -104,6 +104,7 @@ describe('pipeline clinica consolidata', () => {
 
 it('mostra evidenza discordante nel report HTML e nel testo, senza affermare una lunghezza', () => {
   const a = generateAssessmentReport(createEmptyAssessment())
+  delete a.report!.clinicalPipeline!.functionalModel // Historical reports retain the legacy renderer.
   a.report!.clinicalPipeline!.tissues = consolidateTissueEvidence([tissue('a'), tissue('b', { lengthState: 'lengthened' })])
   const html = renderToStaticMarkup(createElement(ClinicalReport, { assessment: a }))
   const text = buildTextReportLines(a)!.join('\n')
