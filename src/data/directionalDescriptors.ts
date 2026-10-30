@@ -73,6 +73,11 @@ export function getDirectionsForDescriptor(
   plane: AnatomicalPlane,
   descriptor: Descriptor,
 ): ClinicalDirection[] {
+  if (plane === 'trasverso') {
+    if (descriptor === 'anteposizione') return ['anteriore']
+    if (descriptor === 'retroposizione') return ['posteriore']
+    if (['dissociazione', 'compenso_crociato', 'taglio_stimato', 'convergenza', 'divergenza'].includes(descriptor)) return ['dx', 'sx']
+  }
   if (descriptor === 'rotation') return ['rotazione_dx', 'rotazione_sx']
   if (plane === 'trasverso') {
     if (descriptor === 'shift' || descriptor === 'tilt') {
@@ -116,6 +121,11 @@ export function getAllowedDirections(
   descriptor: Descriptor,
 ): ClinicalDirection[] {
   if (descriptor === 'compenso') return []
+  if (plane === 'trasverso') {
+    if (descriptor === 'anteposizione') return ['anteriore']
+    if (descriptor === 'retroposizione') return ['posteriore']
+    if (['dissociazione', 'compenso_crociato', 'taglio_stimato', 'convergenza', 'divergenza'].includes(descriptor)) return ['dx', 'sx']
+  }
   if (descriptor === 'rotation') return ['rotazione_dx', 'rotazione_sx']
   if (FRONTAL_PLANES.includes(plane) && (descriptor === 'shift' || descriptor === 'tilt')) return ['dx', 'sx']
   const def = getAlterationsForPlane(plane).find((a) => a.id === alterationId)

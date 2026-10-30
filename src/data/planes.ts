@@ -255,6 +255,13 @@ export const PLANE_CLINICAL_CONFIGS: Record<AnatomicalPlane, PlaneClinicalConfig
       'Disaccoppiamento torace-bacino suggerisce spirale dominante.',
     ],
     alterations: [
+      { id: 'posizione_scapulum', label: 'Posizione scapulum', suggestedDescriptors: ['anteposizione', 'retroposizione'], district: 'cintura_scapolare' },
+      { id: 'posizione_ileo', label: 'Posizione ileo / emibacino', suggestedDescriptors: ['anteposizione', 'retroposizione'], district: 'pelvico' },
+      { id: 'relazione_scapolo_pelvica', label: 'Relazione scapolo-pelvica', suggestedDescriptors: ['dissociazione', 'compenso_crociato', 'taglio_stimato'], district: 'toraco_lombare' },
+      { id: 'asimmetria_cingolo_scapolare', label: 'Asimmetria cingolo scapolare', suggestedDescriptors: ['dissociazione'], district: 'cintura_scapolare' },
+      { id: 'asimmetria_cingolo_pelvico', label: 'Asimmetria cingolo pelvico', suggestedDescriptors: ['dissociazione'], district: 'pelvico' },
+      { id: 'relazione_cingoli_piedi', label: 'Disassamento cingoli-piedi', suggestedDescriptors: ['dissociazione', 'compenso_crociato'], district: 'globale' },
+
       { id: 'rotazione_capo', label: 'Rotazione capo', suggestedDescriptors: ['rotation', 'compenso'], district: 'cranio_cervicale' },
       { id: 'torsione_cervicale', label: 'Torsione cervicale', suggestedDescriptors: ['rotation', 'compenso'], district: 'cervicale' },
       { id: 'rotazione_toracica', label: 'Rotazione toracica', suggestedDescriptors: ['rotation', 'compenso'], district: 'toracica' },
@@ -264,7 +271,7 @@ export const PLANE_CLINICAL_CONFIGS: Record<AnatomicalPlane, PlaneClinicalConfig
       { id: 'orientamento_scapolare', label: 'Orientamento scapolare', suggestedDescriptors: ['rotation', 'tilt'], district: 'cintura_scapolare' },
       { id: 'rotazione_femorale', label: 'Rotazione femorale', suggestedDescriptors: ['rotation', 'compenso'], district: 'arto_inferiore' },
       { id: 'orientamento_rotuleo', label: 'Orientamento rotuleo', suggestedDescriptors: ['rotation', 'tilt'], district: 'arto_inferiore' },
-      { id: 'convergenza_piedi', label: 'Convergenza/divergenza piedi', suggestedDescriptors: ['rotation', 'shift'], district: 'arto_inferiore' },
+      { id: 'convergenza_piedi', label: 'Convergenza/divergenza piedi', suggestedDescriptors: ['convergenza', 'divergenza', 'rotation'], district: 'arto_inferiore' },
       { id: 'asse_podalico', label: 'Asse podalico', suggestedDescriptors: ['rotation', 'tilt'], district: 'arto_inferiore' },
       { id: 'compensi_crociati', label: 'Compensi crociati', suggestedDescriptors: ['compenso', 'rotation'], district: 'globale' },
       { id: 'disaccoppiamento_torace_bacino', label: 'Disaccoppiamento torace-bacino', suggestedDescriptors: ['rotation', 'shift'], district: 'toraco_lombare' },

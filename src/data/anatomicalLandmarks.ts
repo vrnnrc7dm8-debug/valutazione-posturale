@@ -207,6 +207,12 @@ const TRASVERSO: LandmarkCatalogEntry[] = [
   lm('calcagno_trasv_sx', 'Calcagno SX', 'SX', 'trasverso', 'sinistro', 'foot'),
   lm('secondo_raggio_dx', 'Secondo raggio DX', 'DX', 'trasverso', 'destro', 'foot'),
   lm('secondo_raggio_sx', 'Secondo raggio SX', 'SX', 'trasverso', 'sinistro', 'foot'),
+  lm('scapulum_trasv_dx', 'Scapulum DX', 'DX', 'trasverso', 'destro', 'shoulder_girdle'),
+  lm('scapulum_trasv_sx', 'Scapulum SX', 'SX', 'trasverso', 'sinistro', 'shoulder_girdle'),
+  lm('ileo_trasv_dx', 'Ileo DX', 'DX', 'trasverso', 'destro', 'pelvis'),
+  lm('ileo_trasv_sx', 'Ileo SX', 'SX', 'trasverso', 'sinistro', 'pelvis'),
+  lm('asse_piede_trasv_dx', 'Asse piede (riferimento intermedio) DX', 'DX', 'trasverso', 'destro', 'foot'),
+  lm('asse_piede_trasv_sx', 'Asse piede (riferimento intermedio) SX', 'SX', 'trasverso', 'sinistro', 'foot'),
 ]
 
 export const LANDMARK_CATALOG: LandmarkCatalogEntry[] = [
@@ -264,3 +270,9 @@ export const ANATOMICAL_LANDMARKS = LANDMARK_CATALOG.map((e) => ({
   color: LANDMARK_CATEGORY_COLORS[e.category],
   bilateral: e.side === 'destro' || e.side === 'sinistro',
 }))
+
+/** Order and labels used by transverse landmark dropdowns only. */
+export const TRANSVERSE_LANDMARK_GROUPS = [
+  { category: 'shoulder_girdle', label: 'SCAPOLE' }, { category: 'pelvis', label: 'BACINO' },
+  { category: 'foot', label: 'PIEDI' }, { category: 'head', label: 'CAPO' },
+] as const

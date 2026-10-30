@@ -1,3 +1,4 @@
+import { analyzeMyofascialLinesForPlane } from '@/utils/myersEngine'
 import { expect, it } from 'vitest'
 import { getLandmarksForPlane } from '@/data/anatomicalLandmarks'
 import type { PlacedLandmark } from '@/types'
@@ -15,13 +16,15 @@ function point(id: string, x: number, y: number): PlacedLandmark {
 const landmarks = () => [
   point('cranio_posteriore_trasv', .5, .3), point('cranio_anteriore_trasv', .55, .1),
   point('scapola_trasv_sx', .3, .4), point('scapola_trasv_dx', .7, .45),
+  point('scapulum_trasv_sx', .3, .4), point('scapulum_trasv_dx', .7, .45),
+  point('ileo_trasv_sx', .3, .6), point('ileo_trasv_dx', .7, .55),
   point('psis_trasv_sx', .3, .6), point('psis_trasv_dx', .7, .55),
   point('calcagno_trasv_dx', .6, .9), point('secondo_raggio_dx', .65, .8),
   point('calcagno_trasv_sx', .4, .9), point('secondo_raggio_sx', .35, .8),
 ]
 it('catalogo trasverso specifico, senza repere frontali, conserva i cataloghi degli altri piani', () => {
   const catalog = getLandmarksForPlane('trasverso')
-  expect(catalog).toHaveLength(12)
+  expect(catalog).toHaveLength(18)
   expect(catalog.map(l => l.label).join(' ')).not.toMatch(/Pupilla|Acromion|Clavicola|Sterno|Rotula|SIAS|femoro/i)
   expect(catalog.every(l => l.plane === 'trasverso')).toBe(true)
   expect(getLandmarksForPlane('frontale_anteriore').some(l => l.id === 'acromion_dx')).toBe(true)
@@ -39,11 +42,12 @@ it('assenza, stima AI, punti coincidenti o obsoleti non generano valori fittizi'
 })
 it('calcola assi e differenze relative firmate, senza dedurre direzioni anatomiche dal lato schermo', () => {
   const result = computeAutoMeasurements('trasverso', landmarks())
-  expect(result).toHaveLength(11)
-  expect(result.filter(m => !m.id.includes('scapola_') && m.id !== 'trasv_asimmetria_scapole').every(m => Number.isFinite(m.numericValue) && m.direction === undefined)).toBe(true)
+  expect(result).toHaveLength(32)
+  expect(result.find(m => m.id === 'trasv_torace')!.numericValue).toBeDefined()
+  expect(result.every(m => m.direction === undefined)).toBe(true)
   expect(result.find(m => m.id === 'trasv_torace_bacino')!.numericValue).toBeCloseTo(2 * Math.atan(.05 / .4) * 180 / Math.PI)
   expect(buildBiomechanicalAxes('trasverso', landmarks())).toHaveLength(5)
-  const partial = computeAutoMeasurements('trasverso', landmarks().filter(l => !l.landmarkId.startsWith('psis')))
+  const partial = computeAutoMeasurements('trasverso', landmarks().filter(l => !l.landmarkId.startsWith('ileo')))
   expect(partial.find(m => m.id === 'trasv_torace_bacino')!.numericValue).toBeUndefined()
   expect(partial.find(m => m.id === 'trasv_torace')!.numericValue).toBeDefined()
 })
@@ -59,7 +63,8 @@ it('proposte separate da conferma e Myers: servono direzione e landmark correnti
   const measurements = computeAutoMeasurements('trasverso', landmarks())
   const generated = observationsFromAutoMeasurements(measurements)
   expect(generated.length).toBeGreaterThan(0)
-  expect(generated.every(o => o.status === 'suggested' && o.descriptor === 'rotation' && !o.direction)).toBe(true)
+  expect(generated.every(o => o.status === 'suggested')).toBe(true)
+  expect(generated.filter(o => o.descriptor === 'rotation').every(o => !o.direction)).toBe(true)
   expect(runClinicalPipeline([{ plane: 'trasverso', alterations: [] }], measurements).patterns).toEqual([])
   const observation = generated.find(o => o.phenomenon === 'rotazione_toracica')!
   const assessment = { plane: 'trasverso' as const, alterations: [], observations: [{ ...observation, status: 'confirmed' as const }] }
@@ -79,4 +84,67 @@ it('proposte separate da conferma e Myers: servono direzione e landmark correnti
 it('SynthPose non propone punti trasversi anche ad alta confidenza', () => {
   expect(synthposeToAutoProposals(synthposeFixture('trasverso'), 'trasverso')).toEqual([])
   expect(synthposeToAutoProposals(synthposeFixture(), 'frontale_anteriore').length).toBeGreaterThan(0)
+})
+
+
+it('ante/retro relative conservano operatore e lato per scapulum e ileo, senza rotazioni derivate', () => {
+  const measurements = analyzeTransverse(landmarks()).measurements
+  const proposals = observationsFromAutoMeasurements(measurements)
+  const ap = proposals.filter(o => ['posizione_scapulum', 'posizione_ileo'].includes(o.phenomenon))
+  expect(ap).toHaveLength(4)
+  expect(ap.filter(o => o.phenomenon === 'posizione_scapulum').map(o => o.descriptor).sort()).toEqual(['anteposizione', 'retroposizione'])
+  expect(ap.filter(o => o.phenomenon === 'posizione_ileo').map(o => o.descriptor).sort()).toEqual(['anteposizione', 'retroposizione'])
+  expect(ap.every(o => o.side && ['anteriore', 'posteriore'].includes(o.direction!))).toBe(true)
+  const pipeline = runClinicalPipeline([{ plane: 'trasverso', alterations: [], observations: ap.map(o => ({ ...o, status: 'confirmed' })) }], measurements)
+  expect(pipeline.patterns).toHaveLength(4)
+  expect(pipeline.patterns.every(p => p.descriptor !== 'rotation')).toBe(true)
+  expect(pipeline.inferences).toEqual([])
+  const missingAnterior = analyzeTransverse(landmarks().filter(l => l.landmarkId !== 'cranio_anteriore_trasv')).measurements
+  expect(missingAnterior.filter(m => m.id.startsWith('trasv_ap_')).every(m => m.numericValue === undefined)).toBe(true)
+})
+
+it('misura relazioni omolaterali, crociate e podaliche e limita le inferenze alle relazioni confermate', () => {
+  const measurements = analyzeTransverse(landmarks()).measurements
+  for (const id of ['trasv_relazione_dx_dx', 'trasv_relazione_sx_sx', 'trasv_relazione_dx_sx', 'trasv_relazione_sx_dx', 'trasv_pelvico_piede_dx', 'trasv_pelvico_piede_sx', 'trasv_scapolare_piede_dx', 'trasv_scapolare_piede_sx', 'trasv_taglio_proiettivo', 'trasv_apertura_piedi']) {
+    expect(measurements.find(m => m.id === id)?.numericValue, id).toBeDefined()
+  }
+  const generated = observationsFromAutoMeasurements(measurements)
+  const relation = generated.find(o => o.phenomenon === 'relazione_scapolo_pelvica' && o.descriptor === 'dissociazione')!
+  expect(relation.direction).toBeUndefined()
+  const observation = { ...relation, status: 'confirmed' as const, direction: 'sx' as const }
+  const assessment = { plane: 'trasverso' as const, alterations: [], observations: [observation] }
+  const pipeline = runClinicalPipeline([assessment], measurements)
+  expect(pipeline.patterns[0].descriptor).toBe('dissociazione')
+  expect(pipeline.inferences[0].lines.some(l => l.lineId === 'spiral_left')).toBe(true)
+  expect(pipeline.inferences[0].lines.every(l => l.lineId !== 'spiral_right' && l.confidence <= .55)).toBe(true)
+  expect(pipeline.tissues.some(t => /plantare|gastrocnemio|soleo/.test(t.name))).toBe(false)
+  expect(runClinicalPipeline([assessment], []).inferences).toEqual([])
+  const noFoot = analyzeTransverse(landmarks().filter(l => !l.landmarkId.startsWith('calcagno'))).measurements
+  expect(noFoot.filter(m => /trasv_(pelvico|scapolare)_piede/.test(m.id)).every(m => m.numericValue === undefined)).toBe(true)
+})
+
+it('ante/retro alimentano Myers dal contesto confermato scapolo-pelvico-podalico senza diventare rotation', () => {
+  const measurements = analyzeTransverse(landmarks()).measurements
+  const proposals = observationsFromAutoMeasurements(measurements)
+  const ap = proposals.filter(o => ['posizione_scapulum', 'posizione_ileo'].includes(o.phenomenon)).map(o => ({ ...o, status: 'confirmed' as const }))
+  const girdles = { ...proposals.find(o => o.phenomenon === 'relazione_scapolo_pelvica' && o.descriptor === 'dissociazione')!, status: 'confirmed' as const, direction: 'sx' as const }
+  const foot = { ...proposals.find(o => o.phenomenon === 'relazione_cingoli_piedi')!, status: 'confirmed' as const, direction: 'sx' as const }
+  const run = (observations: typeof ap) => runClinicalPipeline([{ plane: 'trasverso', alterations: [], observations }], measurements)
+  const result = run([...ap, girdles, foot])
+  const apInferences = result.inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId))
+  expect(apInferences).toHaveLength(4)
+  const contextual = result.myersPlanes[0].alterations.filter(a => a.myersContext)
+  expect(analyzeMyofascialLinesForPlane('trasverso', contextual)).toEqual(analyzeMyofascialLinesForPlane('trasverso', contextual.slice(0, 1)))
+  for (const inference of apInferences) {
+    expect(inference.lines.some(l => l.lineId === 'spiral_left')).toBe(true)
+    expect(inference.lines.some(l => l.lineId === 'functional_back')).toBe(true)
+    expect(inference.lines.every(l => l.lineId !== 'spiral_right' && l.contextPatternIds?.length === 2)).toBe(true)
+    expect(inference.lines.every(l => ['anteposizione', 'retroposizione'].includes(l.sourceDescriptor!))).toBe(true)
+  }
+  const changedSeverity = run([...ap.map(o => ({ ...o, severity: 'severo' as const })), girdles, foot])
+  expect(changedSeverity.inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId)).map(i => i.lines.map(l => l.score))).toEqual(apInferences.map(i => i.lines.map(l => l.score)))
+  expect(run([...ap, girdles]).inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId))).toEqual([])
+  expect(run([...ap, girdles, { ...foot, direction: 'dx' }]).inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId))).toEqual([])
+  const incomplete = analyzeTransverse(landmarks().filter(l => !l.landmarkId.startsWith('calcagno'))).measurements
+  expect(runClinicalPipeline([{ plane: 'trasverso', alterations: [], observations: [...ap, girdles, foot] }], incomplete).inferences.filter(i => ['posizione_scapulum', 'posizione_ileo'].includes(i.alterationId))).toEqual([])
 })

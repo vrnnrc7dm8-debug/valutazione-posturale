@@ -1,3 +1,4 @@
+import { TransverseLandmarkOptions } from './TransverseLandmarkOptions'
 import { useCallback, useMemo, useState } from 'react'
 import {
   Crosshair,
@@ -265,7 +266,7 @@ export function LandmarkEditor({
                   <SelectValue placeholder="Landmark A" />
                 </SelectTrigger>
                 <SelectContent>
-                  {catalog.map((e) => (
+                  {plane === 'trasverso' ? <TransverseLandmarkOptions /> : catalog.map((e) => (
                     <SelectItem key={e.id} value={e.id} className="text-xs">
                       {e.shortLabel} — {e.label}
                     </SelectItem>
@@ -277,7 +278,7 @@ export function LandmarkEditor({
                   <SelectValue placeholder="Landmark B" />
                 </SelectTrigger>
                 <SelectContent>
-                  {catalog.map((e) => (
+                  {plane === 'trasverso' ? <TransverseLandmarkOptions /> : catalog.map((e) => (
                     <SelectItem key={e.id} value={e.id} className="text-xs">
                       {e.shortLabel} — {e.label}
                     </SelectItem>

@@ -1,3 +1,4 @@
+import { hasTransverseInferenceDirection } from '@/data/clinicalOperators'
 import { alterationRegion, tissueProximity, isSpinalPhenomenon } from '@/data/tissueDistricts'
 import type { ClinicalDirection, SpinalRegion } from '@/types'
 import { MYOFASCIAL_LINES, inferTissueState, resolveLinesForOperator, type ClinicalObservationPlane, type FunctionalMovementOperator } from '@/data/myofascialLines'
@@ -155,6 +156,8 @@ const OBSERVATION_PLANES: Record<AnatomicalPlane, ClinicalObservationPlane> = {
 
 /** Tissue side is an inference output, not a side added to the spinal observation. */
 function inferenceSide(a: AlterationSelection): Side | undefined {
+  if (a.myersContext) return a.myersContext.side
+  if (['dissociazione', 'compenso_crociato', 'taglio_stimato'].includes(a.descriptor)) return a.direction === 'dx' ? 'destro' : a.direction === 'sx' ? 'sinistro' : undefined
   if (isSpinalPhenomenon(a.alterationId)) {
     const convexity = a.anatomicalDetails?.convexity
     if (a.descriptor === 'bend' && (convexity === 'dx' || convexity === 'sx')) return convexity === 'dx' ? 'destro' : 'sinistro'
@@ -212,7 +215,12 @@ const DISTAL_RULES: AlterationRule[] = [{
   lines: Object.fromEntries((['superficial_back', 'lateral_right', 'lateral_left'] as MyofascialLineId[])
     .filter(id => distalCompatible.has(id)).map(id => [id, id === 'superficial_back' ? 1.2 : 1.5])),
 }]
-export const MYERS_RULES: AlterationRule[] = [...SPINAL_RULES, ...SPINAL_OPERATOR_RULES, ...DISTAL_RULES, ...GLOBAL_RULES]
+const TRANSVERSE_RELATION_RULES: AlterationRule[] = [{
+  alterationIds: ['relazione_scapolo_pelvica', 'relazione_cingoli_piedi', 'asimmetria_cingolo_scapolare', 'asimmetria_cingolo_pelvico'],
+  descriptors: ['dissociazione', 'compenso_crociato', 'taglio_stimato'], directions: ['dx', 'sx'], planes: ['trasverso'],
+  lines: { spiral_right: 2.5, spiral_left: 2.5, functional_back: 2.5 },
+}]
+export const MYERS_RULES: AlterationRule[] = [...TRANSVERSE_RELATION_RULES, ...SPINAL_RULES, ...SPINAL_OPERATOR_RULES, ...DISTAL_RULES, ...GLOBAL_RULES]
 
 export function ruleSpecificity(rule: AlterationRule): number {
   return (rule.descriptors ? 16 : 0) + (rule.directions ? 8 : 0) + (rule.regions ? 4 : 0) + (rule.convexities ? 2 : 0) + (rule.planes ? 1 : 0)
@@ -281,12 +289,14 @@ function scoreAlterationLineWeights(
   alteration: AlterationSelection,
   plane: AnatomicalPlane,
 ): { scores: Map<MyofascialLineId, number>; rule?: AlterationRule } {
-  if (plane === 'trasverso' && (!alteration.quantitative || !Number.isFinite(alteration.quantitative.value) || !['rotazione_dx', 'rotazione_sx'].includes(alteration.direction ?? ''))) return { scores: new Map() }
+  if (plane === 'trasverso' && (!alteration.quantitative || !Number.isFinite(alteration.quantitative.value) || (!hasTransverseInferenceDirection(alteration.descriptor, alteration.direction) && !alteration.myersContext))) return { scores: new Map() }
   const config = getPlaneConfig(plane)
   const boostLines = new Set(config.primaryMyersLines)
   const effectiveSide = inferenceSide(alteration)
-  const rule = resolveMyersRule(plane, alteration)
-  const weight = SEVERITY_WEIGHT[alteration.severity] * (plane === 'trasverso' ? 0.5 : 1)
+  const rule: AlterationRule | undefined = plane === 'trasverso' && alteration.myersContext && ['anteposizione', 'retroposizione'].includes(alteration.descriptor)
+    ? { alterationIds: [alteration.alterationId], descriptors: [alteration.descriptor], planes: ['trasverso'], lines: { spiral_right: 2.5, spiral_left: 2.5, functional_back: 2.5 } }
+    : resolveMyersRule(plane, alteration)
+  const weight = (alteration.myersContext?.intensity ?? SEVERITY_WEIGHT[alteration.severity]) * (plane === 'trasverso' ? 0.5 : 1)
   const scores = new Map<MyofascialLineId, number>()
 
   const addWeights = (lines: LineWeight, multiplier = 1) => {
@@ -323,8 +333,9 @@ export function inferMyersForAlteration(
     if (score < MIN_INSTANCE_LINE_SCORE) continue
     const def = MYOFASCIAL_LINES[lineId]
     const side = sideFromLineId(lineId, effectiveSide)
-    const confidence = Math.min(plane === 'trasverso' ? 0.55 : 1, computeInferenceConfidence(alteration, rule))
+    const confidence = Math.min(plane === 'trasverso' ? 0.55 : 1, alteration.myersContext?.confidence ?? computeInferenceConfidence(alteration, rule))
     lines.push({
+      contextPatternIds: alteration.myersContext?.patternIds,
       ruleSpecificity: rule ? ruleSpecificity(rule) : 0, sourceDescriptor: alteration.descriptor, sourceDirection: alteration.direction, sourceRegion: alterationRegion(alteration),
       lineId,
       lineName: def.name,
@@ -398,7 +409,13 @@ export function analyzeMyofascialLinesForPlane(
 ): MyofascialLineResult[] {
   const aggregated = new Map<MyofascialLineId, { score: number; sides: Side[] }>()
 
+  const seenContexts = new Set<string>()
   for (const alt of alterations) {
+    if (alt.myersContext) {
+      const key = [...alt.myersContext.patternIds].sort().join('|')
+      if (seenContexts.has(key)) continue
+      seenContexts.add(key)
+    }
     const { scores } = scoreAlterationLineWeights(alt, plane)
     const effectiveSide = inferenceSide(alt)
     for (const [lineId, score] of scores) {

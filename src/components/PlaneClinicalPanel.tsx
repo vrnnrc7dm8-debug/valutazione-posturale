@@ -71,7 +71,7 @@ export function PlaneClinicalPanel({
           </ul>
         </div>
 
-        {plane === 'trasverso' && <p className="rounded border border-amber-200 p-2 text-xs">Vista dall’alto / postero-superiore: posizionare solo repere visibili. Gli angoli sono indici 2D su coordinate normalizzate, sensibili a prospettiva, inclinazione e formato della foto; non misurano una rotazione anatomica 3D. Confermare i landmark e specificare manualmente la direzione anatomica delle osservazioni. Compensi crociati e asimmetrie richiedono valutazione clinica.</p>}
+        {plane === 'trasverso' && <p className="rounded border border-amber-200 p-2 text-xs">Vista dall’alto / postero-superiore: posizionare solo repere visibili. Gli angoli sono indici 2D su coordinate normalizzate, sensibili a prospettiva, inclinazione e formato della foto; non misurano una rotazione anatomica 3D. Confermare i landmark e specificare manualmente la direzione anatomica delle osservazioni. Ante/retro sono indici relativi al controlaterale lungo l’asse cranico anteriore confermato. Il taglio stimato è un disassamento geometrico: non misura forze né identifica ernie, radicolopatie o altre patologie. Compensi crociati e relazioni richiedono conferma clinica.</p>}
         {autoMs.length > 0 && (
           <div>
             <p className="mb-1 text-xs font-semibold text-clinical-800">

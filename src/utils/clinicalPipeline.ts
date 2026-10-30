@@ -1,7 +1,8 @@
+import { hasTransverseInferenceDirection } from '@/data/clinicalOperators'
 import { observationDescriptor, formatOperatorDirection } from '@/data/clinicalOperators'
 import { observationsFromAutoMeasurements, mergeAutomaticObservations } from './automaticObservations'
 import type { AutoMeasurement } from './biomechanicsEngine'
-import type { AlterationSelection, ClinicalObservation, PosturalPattern, TissueFunctionalState, PlaneAssessment, AlterationMyersInference } from '@/types'
+import type { AlterationSelection, ClinicalObservation, PosturalPattern, TissueFunctionalState, PlaneAssessment, AlterationMyersInference, Side } from '@/types'
 import { getAlterationsForPlane } from '@/data/planes'
 import { inferMyersForAlteration } from './myersEngine'
 import { isSpinalPhenomenon } from '@/data/tissueDistricts'
@@ -79,16 +80,16 @@ export function patternSelection(p: PosturalPattern): AlterationSelection {
   }
 }
 
-export function inferMyersFromPatterns(patterns: PosturalPattern[]): AlterationMyersInference[] {
-  const active = patterns.filter(p => p.status !== 'excluded' && p.status !== 'suggested' && (p.plane !== 'trasverso' || (p.quantitative && Number.isFinite(p.quantitative.value) && ['rotazione_dx', 'rotazione_sx'].includes(p.direction ?? ''))))
-  const inferences = active.map(p => inferMyersForAlteration(p.plane, patternSelection(p)))
+export function inferMyersFromPatterns(patterns: PosturalPattern[], contexts = new Map<string, NonNullable<AlterationSelection['myersContext']>>()): AlterationMyersInference[] {
+  const active = patterns.filter(p => p.status !== 'excluded' && p.status !== 'suggested' && (p.plane !== 'trasverso' || (p.quantitative && Number.isFinite(p.quantitative.value) && (hasTransverseInferenceDirection(p.descriptor, p.direction) || contexts.has(p.id)))))
+  const inferences = active.map(p => inferMyersForAlteration(p.plane, { ...patternSelection(p), myersContext: contexts.get(p.id) }))
   return inferences.map(inference => ({ ...inference, lines: inference.lines.map(line => {
     const pattern = active.find(p => p.id === inference.instanceId)!
     const corroboratedBy = inferences.filter(other => {
       const otherPattern = active.find(p => p.id === other.instanceId)!
       return independentPatterns(pattern, otherPattern) && other.lines.some(l => l.lineId === line.lineId && (l.side === line.side || l.side === 'bilaterale' || line.side === 'bilaterale'))
     }).map(i => i.instanceId)
-    return { ...line, corroboratedBy, confidence: Math.min(pattern.plane === 'trasverso' ? 0.55 : 0.85, Math.round((line.confidence + (corroboratedBy.length ? 0.04 : 0)) * 100) / 100) }
+    return { ...line, corroboratedBy, confidence: Math.min(pattern.plane === 'trasverso' ? 0.55 : 0.85, Math.round((line.confidence + (corroboratedBy.length && !line.contextPatternIds?.length ? 0.04 : 0)) * 100) / 100) }
   }) }))
 }
 
@@ -124,11 +125,21 @@ export function runClinicalPipeline(planes: PlaneAssessment[], measurements: Aut
   ], observationsFromAutoMeasurements(measurements))
   const patterns = consolidateObservations(observations)
   const currentTransverse = observationsFromAutoMeasurements(measurements).filter(o => o.plane === 'trasverso')
-  const supported = (p: PosturalPattern) => p.plane !== 'trasverso' || currentTransverse.some(o => o.phenomenon === p.phenomenon && o.side === p.side && o.quantitative?.value === p.quantitative?.value && ['rotazione_dx', 'rotazione_sx'].includes(p.direction ?? ''))
-  const inferences = inferMyersFromPatterns(patterns.filter(supported))
+  const matchesCurrent = (p: PosturalPattern) => currentTransverse.some(o => o.phenomenon === p.phenomenon && o.side === p.side && o.descriptor === p.descriptor && o.quantitative?.value === p.quantitative?.value)
+  const contexts = new Map<string, NonNullable<AlterationSelection['myersContext']>>()
+  const relations = patterns.filter(p => p.plane === 'trasverso' && matchesCurrent(p) && hasTransverseInferenceDirection(p.descriptor, p.direction) && ['relazione_scapolo_pelvica', 'relazione_cingoli_piedi'].includes(p.phenomenon))
+  if (relations.some(p => p.phenomenon === 'relazione_scapolo_pelvica') && relations.some(p => p.phenomenon === 'relazione_cingoli_piedi') && new Set(relations.map(p => p.direction)).size === 1) {
+    const context = { side: (relations[0].direction === 'dx' ? 'destro' : 'sinistro') as Side,
+      // Intensity comes from the overall relational geometry, never from AP operator or AP severity.
+      intensity: 1 + Math.min(1, relations.reduce((sum, p) => sum + Math.abs(p.quantitative!.value), 0) / relations.length / 30),
+      confidence: 0.45, patternIds: relations.map(p => p.id) }
+    for (const p of patterns.filter(p => p.plane === 'trasverso' && ['anteposizione', 'retroposizione'].includes(p.descriptor ?? '') && matchesCurrent(p) && (p.descriptor === 'anteposizione' ? p.direction === 'anteriore' : p.direction === 'posteriore'))) contexts.set(p.id, context)
+  }
+  const supported = (p: PosturalPattern) => p.plane !== 'trasverso' || matchesCurrent(p) && (hasTransverseInferenceDirection(p.descriptor, p.direction) || contexts.has(p.id))
+  const inferences = inferMyersFromPatterns(patterns.filter(supported), contexts)
   const tissues = consolidateTissueEvidence(supportedTissueEvidence(patterns, inferences))
   const consolidatedPlanes = planes.map(pa => ({ plane: pa.plane, alterations: patterns.filter(p => p.plane === pa.plane).map(patternSelection) }))
-  const myersPlanes = planes.map(pa => ({ plane: pa.plane, alterations: patterns.filter(p => p.plane === pa.plane && supported(p)).map(patternSelection) }))
+  const myersPlanes = planes.map(pa => ({ plane: pa.plane, alterations: patterns.filter(p => p.plane === pa.plane && supported(p)).map(p => ({ ...patternSelection(p), myersContext: contexts.get(p.id) })) }))
   return { observations, patterns, inferences, tissues, consolidatedPlanes, myersPlanes }
 }
 
@@ -169,7 +180,7 @@ export function observationSummaries(observations: ClinicalObservation[]): strin
 export function formatMyersEvidence(patterns: PosturalPattern[], inferences: AlterationMyersInference[]): string[] {
   return inferences.flatMap(inference => {
     const pattern = patterns.find(p => p.id === inference.instanceId)
-    return inference.lines.map(line => `${line.lineName} · Origine: ${pattern ? formatPattern(pattern) : inference.alterationId} · Lato linea: ${line.side} · Confidenza: ${Math.round(line.confidence * 100)}%${line.corroboratedBy?.length ? ' · riscontri indipendenti concordanti' : ' · singolo pattern'}`)
+    return inference.lines.map(line => `${line.lineName} · Origine: ${pattern ? formatPattern(pattern) : inference.alterationId} · Lato linea: ${line.side} · Confidenza: ${Math.round(line.confidence * 100)}%${line.contextPatternIds?.length ? ` · Contesto scapolo-pelvico-podalico: ${line.contextPatternIds.map(id => patterns.find(p => p.id === id)).filter((p): p is PosturalPattern => !!p).map(formatPattern).join('; ')}` : line.corroboratedBy?.length ? ' · riscontri indipendenti concordanti' : ' · singolo pattern'}`)
   })
 }
 

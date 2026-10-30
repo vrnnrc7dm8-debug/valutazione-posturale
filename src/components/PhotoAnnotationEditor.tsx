@@ -1,3 +1,4 @@
+import { TransverseLandmarkOptions } from './TransverseLandmarkOptions'
 import { SynthPosePanel, SynthPoseDebugOverlay } from '@/components/SynthPosePanel'
 import { getSynthposeDisplayLandmarks, acceptReliableSynthposeProposals, acceptSynthposeProposal, mergeSynthposeProposals, type SynthposeResult } from '@/utils/synthposeAdapter'
 import {
@@ -1184,7 +1185,7 @@ function PhotoAnnotationEditorInner({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="max-h-64">
-                {catalogLandmarks.map((l) => (
+                {plane === 'trasverso' ? <TransverseLandmarkOptions /> : catalogLandmarks.map((l) => (
                   <SelectItem key={l.id} value={l.id}>
                     <span
                       className="mr-2 inline-block h-2 w-2 rounded-full"

@@ -29,6 +29,13 @@ export type Descriptor =
   | 'shift'
   | 'rotation'
   | 'compenso'
+  | 'anteposizione'
+  | 'retroposizione'
+  | 'convergenza'
+  | 'divergenza'
+  | 'dissociazione'
+  | 'compenso_crociato'
+  | 'taglio_stimato'
   | 'fissazione_accorciamento'
   | 'fissazione_allungamento'
 
@@ -305,6 +312,9 @@ export interface PhotoSlot {
 export type AlterationSource = 'manual' | 'suggested' | 'confirmed'
 
 export interface AlterationSelection {
+  /** Ephemeral Myers context from confirmed, concordant scapular–pelvic–foot relationships. */
+  myersContext?: { side: Side; intensity: number; confidence: number; patternIds: string[] }
+
   status?: import('./clinical').ClinicalStatus
   district?: ClinicalDistrict
   anatomicalDetails?: import('./clinical').AnatomicalDetails
@@ -359,6 +369,7 @@ export interface AlterationLineInference {
   sourceDescriptor?: Descriptor
   sourceDirection?: ClinicalDirection
   sourceRegion?: string
+  contextPatternIds?: string[]
   lineId: MyofascialLineId
   lineName: string
   side: Side
@@ -520,6 +531,9 @@ export const DESCRIPTOR_LABELS: Record<Descriptor, string> = {
   shift: 'Shift',
   rotation: 'Rotazione',
   compenso: 'Compenso',
+  anteposizione: 'Anteposizione', retroposizione: 'Retroposizione',
+  convergenza: 'Convergenza', divergenza: 'Divergenza', dissociazione: 'Dissociazione',
+  compenso_crociato: 'Compenso crociato', taglio_stimato: 'Taglio biomeccanico stimato (indice proiettivo)',
   fissazione_accorciamento: 'Fissazione in accorciamento',
   fissazione_allungamento: 'Fissazione in allungamento',
 }
