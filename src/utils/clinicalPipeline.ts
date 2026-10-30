@@ -80,7 +80,7 @@ export function patternSelection(p: PosturalPattern): AlterationSelection {
 }
 
 export function inferMyersFromPatterns(patterns: PosturalPattern[]): AlterationMyersInference[] {
-  const active = patterns.filter(p => p.status !== 'excluded' && p.status !== 'suggested')
+  const active = patterns.filter(p => p.status !== 'excluded' && p.status !== 'suggested' && (p.plane !== 'trasverso' || (p.quantitative && Number.isFinite(p.quantitative.value) && ['rotazione_dx', 'rotazione_sx'].includes(p.direction ?? ''))))
   const inferences = active.map(p => inferMyersForAlteration(p.plane, patternSelection(p)))
   return inferences.map(inference => ({ ...inference, lines: inference.lines.map(line => {
     const pattern = active.find(p => p.id === inference.instanceId)!
@@ -88,7 +88,7 @@ export function inferMyersFromPatterns(patterns: PosturalPattern[]): AlterationM
       const otherPattern = active.find(p => p.id === other.instanceId)!
       return independentPatterns(pattern, otherPattern) && other.lines.some(l => l.lineId === line.lineId && (l.side === line.side || l.side === 'bilaterale' || line.side === 'bilaterale'))
     }).map(i => i.instanceId)
-    return { ...line, corroboratedBy, confidence: Math.min(0.85, Math.round((line.confidence + (corroboratedBy.length ? 0.04 : 0)) * 100) / 100) }
+    return { ...line, corroboratedBy, confidence: Math.min(pattern.plane === 'trasverso' ? 0.55 : 0.85, Math.round((line.confidence + (corroboratedBy.length ? 0.04 : 0)) * 100) / 100) }
   }) }))
 }
 
@@ -123,10 +123,13 @@ export function runClinicalPipeline(planes: PlaneAssessment[], measurements: Aut
     ...observationsFromAssessments(planes), ...planes.flatMap(p => p.observations ?? []),
   ], observationsFromAutoMeasurements(measurements))
   const patterns = consolidateObservations(observations)
-  const inferences = inferMyersFromPatterns(patterns)
+  const currentTransverse = observationsFromAutoMeasurements(measurements).filter(o => o.plane === 'trasverso')
+  const supported = (p: PosturalPattern) => p.plane !== 'trasverso' || currentTransverse.some(o => o.phenomenon === p.phenomenon && o.side === p.side && o.quantitative?.value === p.quantitative?.value && ['rotazione_dx', 'rotazione_sx'].includes(p.direction ?? ''))
+  const inferences = inferMyersFromPatterns(patterns.filter(supported))
   const tissues = consolidateTissueEvidence(supportedTissueEvidence(patterns, inferences))
   const consolidatedPlanes = planes.map(pa => ({ plane: pa.plane, alterations: patterns.filter(p => p.plane === pa.plane).map(patternSelection) }))
-  return { observations, patterns, inferences, tissues, consolidatedPlanes }
+  const myersPlanes = planes.map(pa => ({ plane: pa.plane, alterations: patterns.filter(p => p.plane === pa.plane && supported(p)).map(patternSelection) }))
+  return { observations, patterns, inferences, tissues, consolidatedPlanes, myersPlanes }
 }
 
 export function formatPattern(p: PosturalPattern): string {

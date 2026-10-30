@@ -12,17 +12,26 @@ const FRONTAL_MAPPING: Record<string, { phenomenon: string; district: ClinicalDi
   rotazione_arto_inferiore_sinistro: { phenomenon: 'rotazione_arto_inferiore', district: 'arto_inferiore' },
 }
 
+const TRANSVERSE_MAPPING: Record<string, { phenomenon: string; district: ClinicalDistrict }> = {
+  trasv_capo_torace: { phenomenon: 'rotazione_capo', district: 'cranio_cervicale' },
+  trasv_torace: { phenomenon: 'rotazione_toracica', district: 'toracica' },
+  trasv_bacino: { phenomenon: 'rotazione_bacino', district: 'pelvico' },
+  trasv_torace_bacino: { phenomenon: 'disaccoppiamento_torace_bacino', district: 'toraco_lombare' },
+  trasv_piede_dx: { phenomenon: 'asse_podalico', district: 'arto_inferiore' },
+  trasv_piede_sx: { phenomenon: 'asse_podalico', district: 'arto_inferiore' },
+}
+
 /** Classification thresholds belong to the measurement engine, never to the UI. */
 export function observationsFromAutoMeasurements(measurements: AutoMeasurement[]): ClinicalObservation[] {
   const observations = new Map<string, ClinicalObservation>()
   for (const m of measurements) {
-    const mapping = FRONTAL_MAPPING[m.id]
-    if (m.plane !== 'frontale_anteriore' || !mapping || m.severity === 'normale' || !Number.isFinite(m.numericValue) || !m.unit) continue
+    const mapping = m.plane === 'trasverso' ? TRANSVERSE_MAPPING[m.id] : FRONTAL_MAPPING[m.id]
+    if (!['frontale_anteriore', 'trasverso'].includes(m.plane) || !mapping || m.severity === 'normale' || !Number.isFinite(m.numericValue) || !m.unit) continue
     const id = `automatic_measurement:${m.plane}:${m.id}`
     observations.set(id, {
-      id, plane: m.plane, ...mapping, descriptor: observationDescriptor(mapping.phenomenon, m.plane),
+      id, plane: m.plane, ...mapping, descriptor: m.plane === 'trasverso' ? 'rotation' : observationDescriptor(mapping.phenomenon, m.plane),
       side: m.side ?? (m.id.endsWith('_destro') ? 'destro' : m.id.endsWith('_sinistro') ? 'sinistro' : undefined),
-      direction: mapping.phenomenon === 'rotazione_arto_inferiore' && !['rotazione_dx', 'rotazione_sx'].includes(m.direction ?? '') ? undefined : m.direction, severity: m.severity,
+      direction: m.plane === 'trasverso' ? undefined : mapping.phenomenon === 'rotazione_arto_inferiore' && !['rotazione_dx', 'rotazione_sx'].includes(m.direction ?? '') ? undefined : m.direction, severity: m.severity,
       quantitative: { value: m.numericValue!, unit: m.unit },
       source: 'automatic_measurement', sourceIds: [id], status: 'suggested',
       notes: mapping.phenomenon === 'rotazione_arto_inferiore' ? `${m.value} (stima del segmento; specificare la direzione assiale clinica). ${m.suggestion ?? ''}` : m.observationNote ?? m.suggestion,

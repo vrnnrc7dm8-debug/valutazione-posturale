@@ -67,7 +67,7 @@ describe('report della valutazione corrente', () => {
     expect(section.autoMeasurements.some(m => m.startsWith('Angolo annotato 1:'))).toBe(true)
     expect(section.autoMeasurements.some(m => m.startsWith('Angolo annotato 2:'))).toBe(false)
     expect(section.autoMeasurements.join(' ')).toContain('coordinate normalizzate')
-    expect(section.autoMeasurements.join(' ')).not.toContain('mm')
+    expect(section.autoMeasurements.join(' ')).not.toMatch(/\bmm\b/)
     expect(buildTextReportLines(generated)!.join('\n')).toContain(section.autoMeasurements.at(-1))
   })
   it('non usa landmark residui quando manca la fotografia e conserva le osservazioni registrate', () => {

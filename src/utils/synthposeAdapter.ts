@@ -42,6 +42,7 @@ export function parseSynthposeResult(raw: unknown, plane: AnatomicalPlane): Synt
 }
 
 export function synthposeToAutoProposals(result: SynthposeResult, plane: AnatomicalPlane): PlacedLandmark[] {
+  if (plane === 'trasverso') return []
   const checked = parseSynthposeResult(result, plane)
   const catalog = getLandmarksForPlane(plane)
   return SYNTHPOSE_LANDMARK_MAPPING.filter(m => m.plane === plane && m.mappingType !== 'manual_only').flatMap(m => {
@@ -91,5 +92,5 @@ export function getSynthposeDisplayLandmarks(collection: StructuredLandmarkColle
     ...collection.manual.filter(l => l.aiProposal),
     ...(showAi ? collection.autoProposals.filter(l => l.aiProposal) : []),
   ]
-  return [...new Map(items.map(l => [l.id, l])).values()]
+  return [...new Map(items.filter(l => l.plane !== 'trasverso' || !l.aiProposal).map(l => [l.id, l])).values()]
 }

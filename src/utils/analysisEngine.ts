@@ -255,7 +255,7 @@ export function generateClinicalReport(
   const autoMeasurements = collectReportMeasurements(photos)
   const pipeline = runClinicalPipeline(planeAssessments, autoMeasurements)
   planeAssessments = pipeline.consolidatedPlanes
-  myofascialResults = analyzeAllPlanes(planeAssessments)
+  myofascialResults = analyzeAllPlanes(pipeline.myersPlanes)
 
   const planeScores = planeAssessments.map((pa) =>
     scorePlaneAssessment(pa, autoMeasurements.filter(m => m.plane !== 'frontale_anteriore')),
@@ -279,7 +279,7 @@ export function generateClinicalReport(
     const planeAuto = autoMeasurements.filter((m) => m.plane === plane)
     const drawnMeasurements = annotationMeasurements(photo)
     const planeMyers = analyzeAllPlanes(
-      planeAlts.length > 0 ? [{ plane, alterations: planeAlts }] : [],
+      pipeline.myersPlanes.filter(p => p.plane === plane),
     )
 
     return {
@@ -373,9 +373,10 @@ export function runFullAnalysis(
   photos: PhotoSlot[],
   defaultSubjectHeightCm?: number,
 ): FullAnalysisResult {
-  const consolidatedPlanes = runClinicalPipeline(planeAssessments).consolidatedPlanes
-  const myofascialResults = analyzeAllPlanes(consolidatedPlanes)
   const autoMeasurements = collectReportMeasurements(photos)
+  const pipeline = runClinicalPipeline(planeAssessments, autoMeasurements)
+  const consolidatedPlanes = pipeline.consolidatedPlanes
+  const myofascialResults = analyzeAllPlanes(pipeline.myersPlanes)
 
   const planeScores = consolidatedPlanes.map((pa) =>
     scorePlaneAssessment(pa, autoMeasurements.filter(m => m.plane !== 'frontale_anteriore')),

@@ -71,6 +71,7 @@ export function PlaneClinicalPanel({
           </ul>
         </div>
 
+        {plane === 'trasverso' && <p className="rounded border border-amber-200 p-2 text-xs">Vista dall’alto / postero-superiore: posizionare solo repere visibili. Gli angoli sono indici 2D su coordinate normalizzate, sensibili a prospettiva, inclinazione e formato della foto; non misurano una rotazione anatomica 3D. Confermare i landmark e specificare manualmente la direzione anatomica delle osservazioni. Compensi crociati e asimmetrie richiedono valutazione clinica.</p>}
         {autoMs.length > 0 && (
           <div>
             <p className="mb-1 text-xs font-semibold text-clinical-800">

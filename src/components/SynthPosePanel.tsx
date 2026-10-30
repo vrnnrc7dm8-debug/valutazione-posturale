@@ -25,6 +25,8 @@ export function SynthPosePanel(props: Props) {
   const [result, setResult] = useState<SynthposeResult | null>(null)
   const request = useRef<AbortController | null>(null)
   useEffect(() => () => { request.current?.abort() }, [props.image, props.plane])
+  const { plane, onDebug } = props
+  useEffect(() => { if (plane === 'trasverso') onDebug(null) }, [plane, onDebug])
   const proposals = props.collection.autoProposals.filter(l => l.aiProposal)
 
   async function run(statusOnly = false) {
@@ -53,6 +55,11 @@ export function SynthPosePanel(props: Props) {
       setBusy(false)
     }
   }
+
+  if (props.plane === 'trasverso') return <section aria-label="SynthPose sperimentale" className="border-b border-amber-200 bg-amber-50 p-2 text-xs">
+    <p className="font-semibold">Piano trasverso · modalità manuale assistita consigliata</p>
+    <p>Per il piano trasverso, il rilevamento AI è attualmente limitato. SynthPose non è validato per questa vista dall’alto / postero-superiore: nessuna proposta automatica. Posizionare solo repere visibili e confermarli manualmente.</p>
+  </section>
 
   return <section aria-label="SynthPose sperimentale" className="shrink-0 border-b border-violet-200 bg-violet-50 p-2 text-xs">
     <p className="font-semibold">SynthPose locale · sperimentale</p>

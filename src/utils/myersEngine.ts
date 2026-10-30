@@ -281,11 +281,12 @@ function scoreAlterationLineWeights(
   alteration: AlterationSelection,
   plane: AnatomicalPlane,
 ): { scores: Map<MyofascialLineId, number>; rule?: AlterationRule } {
+  if (plane === 'trasverso' && (!alteration.quantitative || !Number.isFinite(alteration.quantitative.value) || !['rotazione_dx', 'rotazione_sx'].includes(alteration.direction ?? ''))) return { scores: new Map() }
   const config = getPlaneConfig(plane)
   const boostLines = new Set(config.primaryMyersLines)
   const effectiveSide = inferenceSide(alteration)
   const rule = resolveMyersRule(plane, alteration)
-  const weight = SEVERITY_WEIGHT[alteration.severity]
+  const weight = SEVERITY_WEIGHT[alteration.severity] * (plane === 'trasverso' ? 0.5 : 1)
   const scores = new Map<MyofascialLineId, number>()
 
   const addWeights = (lines: LineWeight, multiplier = 1) => {
@@ -322,7 +323,7 @@ export function inferMyersForAlteration(
     if (score < MIN_INSTANCE_LINE_SCORE) continue
     const def = MYOFASCIAL_LINES[lineId]
     const side = sideFromLineId(lineId, effectiveSide)
-    const confidence = computeInferenceConfidence(alteration, rule)
+    const confidence = Math.min(plane === 'trasverso' ? 0.55 : 1, computeInferenceConfidence(alteration, rule))
     lines.push({
       ruleSpecificity: rule ? ruleSpecificity(rule) : 0, sourceDescriptor: alteration.descriptor, sourceDirection: alteration.direction, sourceRegion: alterationRegion(alteration),
       lineId,

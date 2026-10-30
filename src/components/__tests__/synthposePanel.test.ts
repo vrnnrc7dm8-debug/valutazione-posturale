@@ -81,3 +81,19 @@ it('un errore del modello non modifica le annotazioni', async () => {
     vi.unstubAllGlobals()
   }
 })
+
+it('nel trasverso consiglia il manuale e non offre rilevamento, debug o proposte obsolete', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock)
+  const host = document.createElement('div'); const root = createRoot(host)
+  try {
+    await act(async () => root.render(createElement(SynthPosePanel, {
+      image: 'data:image/png;base64,synthetic', plane: 'trasverso', collection: createEmptyLandmarkCollection(), visible: true,
+      onVisibleChange: vi.fn(), onDebug: vi.fn(), onProposals: vi.fn(), onAccept: vi.fn(), onAcceptReliable: vi.fn(), onMove: vi.fn(), onReject: vi.fn(),
+    })))
+    expect(host.textContent).toContain('modalità manuale assistita consigliata')
+    expect(host.textContent).toContain('nessuna proposta automatica')
+    expect(host.querySelector('button')).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  } finally { await act(async () => root.unmount()); vi.unstubAllGlobals() }
+})

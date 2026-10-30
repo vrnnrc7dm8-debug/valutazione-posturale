@@ -248,7 +248,7 @@ export const PLANE_CLINICAL_CONFIGS: Record<AnatomicalPlane, PlaneClinicalConfig
     primaryMyersLines: ['spiral_right', 'spiral_left', 'functional_front', 'functional_back', 'arm_lines'],
     biomechanicalFocus: [
       'Rotazioni capo-torace-bacino',
-      'Orientamento scapolare e rotuleo',
+      'Orientamento scapolare e podalico proiettato',
       'Compensi incrociati',
     ],
     dominantPatternHints: [

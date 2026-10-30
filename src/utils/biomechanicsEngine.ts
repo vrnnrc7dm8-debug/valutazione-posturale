@@ -1,3 +1,4 @@
+import { analyzeTransverse } from './transverseAnalysis'
 import {
   CLINICAL_THRESHOLDS,
   degreesQuantitative,
@@ -64,6 +65,7 @@ export function buildBiomechanicalAxes(
   plane: AnatomicalPlane,
   landmarks: PlacedLandmark[],
 ): BiomechanicalAxis[] {
+  if (plane === 'trasverso') return analyzeTransverse(landmarks).axes
   const axes: BiomechanicalAxis[] = []
   const add = (id: string, label: string, from: Point2D, to: Point2D, color: string) => {
     axes.push({ id, label, from, to, color, plane })
@@ -123,6 +125,7 @@ export function computeAutoMeasurements(
   plane: AnatomicalPlane,
   landmarks: PlacedLandmark[],
 ): AutoMeasurement[] {
+  if (plane === 'trasverso') return analyzeTransverse(landmarks).measurements
   const results: AutoMeasurement[] = []
   const config = getPlaneConfig(plane)
 
