@@ -1,3 +1,4 @@
+import { normalizeTransverseRelation } from '@/data/transverseRelations'
 import type { Assessment, Patient, PhotoSlot, PlaneAssessment } from '@/types'
 import {
   createDefaultOverlay,
@@ -56,7 +57,7 @@ export function hydrateAssessment(parsed: Assessment): Assessment {
           : undefined,
       }),
     ),
-    planeAssessments: parsed.planeAssessments ?? base.planeAssessments,
+    planeAssessments: (parsed.planeAssessments ?? base.planeAssessments).map(pa => ({ ...pa, alterations: pa.alterations.map(a => normalizeTransverseRelation(a, pa.plane, a.alterationId, [a.instanceId])), observations: pa.observations?.map(o => normalizeTransverseRelation(o, pa.plane, o.phenomenon, o.sourceIds)) })),
     myofascialResults: parsed.myofascialResults ?? [],
     report: parsed.report ?? null,
     defaultSubjectHeightCm: parsed.defaultSubjectHeightCm,

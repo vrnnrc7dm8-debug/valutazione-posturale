@@ -33,7 +33,7 @@ export interface BiomechanicalAxis {
 }
 
 export interface AutoMeasurement {
-  clinicalSuggestion?: { phenomenon: string; district: import('@/types').ClinicalDistrict; descriptor: import('@/types').Descriptor; direction?: ClinicalDirection }
+  clinicalSuggestion?: { phenomenon: string; district: import('@/types').ClinicalDistrict; descriptor: import('@/types').Descriptor; direction?: ClinicalDirection; transverseRelation?: import('@/data/transverseRelations').TransverseRelation }
   side?: Side
   direction?: ClinicalDirection
   observationNote?: string

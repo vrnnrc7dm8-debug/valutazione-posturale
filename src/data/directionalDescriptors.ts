@@ -1,3 +1,4 @@
+import { normalizeTransverseRelation, formatTransverseRelation, isTransverseRelation } from './transverseRelations'
 import { formatOperatorDirection } from './clinicalOperators'
 export { formatOperatorDirection } from './clinicalOperators'
 import { formatQuantitativeValue } from '@/data/clinicalThresholds'
@@ -76,7 +77,8 @@ export function getDirectionsForDescriptor(
   if (plane === 'trasverso') {
     if (descriptor === 'anteposizione') return ['anteriore']
     if (descriptor === 'retroposizione') return ['posteriore']
-    if (['dissociazione', 'compenso_crociato', 'taglio_stimato', 'convergenza', 'divergenza'].includes(descriptor)) return ['dx', 'sx']
+    if (['dissociazione', 'compenso_crociato', 'taglio_stimato'].includes(descriptor)) return []
+    if (['convergenza', 'divergenza'].includes(descriptor)) return ['dx', 'sx']
   }
   if (descriptor === 'rotation') return ['rotazione_dx', 'rotazione_sx']
   if (plane === 'trasverso') {
@@ -124,7 +126,8 @@ export function getAllowedDirections(
   if (plane === 'trasverso') {
     if (descriptor === 'anteposizione') return ['anteriore']
     if (descriptor === 'retroposizione') return ['posteriore']
-    if (['dissociazione', 'compenso_crociato', 'taglio_stimato', 'convergenza', 'divergenza'].includes(descriptor)) return ['dx', 'sx']
+    if (['dissociazione', 'compenso_crociato', 'taglio_stimato'].includes(descriptor)) return []
+    if (['convergenza', 'divergenza'].includes(descriptor)) return ['dx', 'sx']
   }
   if (descriptor === 'rotation') return ['rotazione_dx', 'rotazione_sx']
   if (FRONTAL_PLANES.includes(plane) && (descriptor === 'shift' || descriptor === 'tilt')) return ['dx', 'sx']
@@ -195,6 +198,7 @@ export function buildAlterationUpdatePatch(
   const nextPatch: Partial<AlterationSelection> = {
     ...patch,
     direction: nextDirection,
+    ...(patch.descriptor && !isTransverseRelation(nextDescriptor) && plane === 'trasverso' ? { transverseRelation: undefined } : {}),
   }
 
   // Body side and motion direction are independent (e.g. right arm rotating left).
@@ -209,6 +213,9 @@ export function formatDirectionLabel(direction?: ClinicalDirection): string | un
 
 
 export function formatAlterationInstanceSummary(sel: AlterationSelection): string {
+  const relation = normalizeTransverseRelation(sel, 'trasverso', sel.alterationId).transverseRelation
+  if (isTransverseRelation(sel.descriptor) && relation) return `${formatTransverseRelation(relation, sel.quantitative)} · ${SEVERITY_LABELS[sel.severity]}`
+
   const parts: string[] = []
   const q = formatQuantitativeValue(sel.quantitative)
   if (q) parts.push(q)

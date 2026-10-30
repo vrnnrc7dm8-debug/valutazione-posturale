@@ -257,9 +257,12 @@ export const PLANE_CLINICAL_CONFIGS: Record<AnatomicalPlane, PlaneClinicalConfig
     alterations: [
       { id: 'posizione_scapulum', label: 'Posizione scapulum', suggestedDescriptors: ['anteposizione', 'retroposizione'], district: 'cintura_scapolare' },
       { id: 'posizione_ileo', label: 'Posizione ileo / emibacino', suggestedDescriptors: ['anteposizione', 'retroposizione'], district: 'pelvico' },
+      { id: 'relazione_scapulum_ileo', label: 'Relazione scapulum–ileo (coppia specifica)', suggestedDescriptors: ['dissociazione'], district: 'toraco_lombare' },
       { id: 'relazione_scapolo_pelvica', label: 'Relazione scapolo-pelvica', suggestedDescriptors: ['dissociazione', 'compenso_crociato', 'taglio_stimato'], district: 'toraco_lombare' },
       { id: 'asimmetria_cingolo_scapolare', label: 'Asimmetria cingolo scapolare', suggestedDescriptors: ['dissociazione'], district: 'cintura_scapolare' },
       { id: 'asimmetria_cingolo_pelvico', label: 'Asimmetria cingolo pelvico', suggestedDescriptors: ['dissociazione'], district: 'pelvico' },
+      { id: 'relazione_pelvi_calcagni', label: 'Dissociazione cingolo pelvico–linea bicalcaneare', suggestedDescriptors: ['dissociazione'], district: 'pelvico' },
+      { id: 'relazione_scapole_calcagni', label: 'Dissociazione cingolo scapolare–linea bicalcaneare', suggestedDescriptors: ['dissociazione'], district: 'cintura_scapolare' },
       { id: 'relazione_cingoli_piedi', label: 'Disassamento cingoli-piedi', suggestedDescriptors: ['dissociazione', 'compenso_crociato'], district: 'globale' },
 
       { id: 'rotazione_capo', label: 'Rotazione capo', suggestedDescriptors: ['rotation', 'compenso'], district: 'cranio_cervicale' },

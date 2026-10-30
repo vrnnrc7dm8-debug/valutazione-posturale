@@ -1,3 +1,4 @@
+import { formatTransverseRelation, isTransverseRelation } from '@/data/transverseRelations'
 import { runClinicalPipeline, formatPattern } from './clinicalPipeline'
 import { formatQuantitativeValue } from '@/data/clinicalThresholds'
 import {
@@ -101,6 +102,7 @@ function formatObservedAlteration(
   plane: AnatomicalPlane,
   alteration: PlaneAssessment['alterations'][number],
 ): string {
+  if (plane === 'trasverso' && isTransverseRelation(alteration.descriptor) && alteration.transverseRelation) return `${formatTransverseRelation(alteration.transverseRelation, alteration.quantitative)} · ${SEVERITY_LABELS[alteration.severity]}${alteration.note ? ` · ${alteration.note}` : ''}`
   const quantitativeLabel = formatQuantitativeValue(alteration.quantitative)
   const descriptorPart = formatOperatorDirection(alteration.descriptor, alteration.direction)
   const sidePart =
@@ -133,14 +135,15 @@ export function formatClinicalFinding(
   myers: AlterationMyersInference,
   tissueAnalysis: AlterationTissueAnalysis,
 ): string {
-  const label = getAlterationLabel(plane, alt.alterationId)
-  const directionLabel = formatDirectionLabel(alt.direction)
-  const quantitativeLabel = formatQuantitativeValue(alt.quantitative)
+  const relation = plane === 'trasverso' && isTransverseRelation(alt.descriptor) ? alt.transverseRelation : undefined
+  const label = relation ? formatTransverseRelation(relation, alt.quantitative) : getAlterationLabel(plane, alt.alterationId)
+  const directionLabel = relation ? undefined : formatDirectionLabel(alt.direction)
+  const quantitativeLabel = relation ? undefined : formatQuantitativeValue(alt.quantitative)
 
   let alterationPart = label
   if (directionLabel) {
     alterationPart += ` verso ${directionLabel.toLowerCase()}`
-  } else if (alt.side && alt.side !== 'bilaterale') {
+  } else if (!relation && alt.side && alt.side !== 'bilaterale') {
     alterationPart += ` lato ${alt.side}`
   }
   alterationPart += ` di grado ${SEVERITY_LABELS[alt.severity].toLowerCase()}`
@@ -320,6 +323,7 @@ export function generateClinicalReport(
       const plane = planeAssessments.find((p) =>
         p.alterations.includes(a),
       )?.plane
+      if (plane === 'trasverso' && isTransverseRelation(a.descriptor) && a.transverseRelation) return formatObservedAlteration(plane, a)
       return plane
         ? `${getAlterationLabel(plane, a.alterationId)} — ${formatOperatorDirection(a.descriptor, a.direction)}${a.quantitative ? ` ${formatQuantitativeValue(a.quantitative)}` : ''} (${SEVERITY_LABELS[a.severity]})`
         : a.alterationId

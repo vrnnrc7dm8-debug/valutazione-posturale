@@ -1,3 +1,4 @@
+import { transverseRelationSide, type TransverseRelation } from './transverseRelations'
 import { DESCRIPTOR_LABELS } from '@/types'
 import type { AnatomicalPlane, ClinicalDirection, Descriptor } from '@/types'
 import { getAlterationsForPlane } from './planes'
@@ -15,6 +16,7 @@ export function observationDescriptor(phenomenon: string, plane: AnatomicalPlane
 /** Patient-anatomical direction, independent of the screen coordinates. */
 export function formatOperatorDirection(descriptor: Descriptor, direction?: ClinicalDirection): string {
   const label = DESCRIPTOR_LABELS
+  if (['dissociazione', 'compenso_crociato', 'taglio_stimato'].includes(descriptor)) return label[descriptor]
   if (descriptor === 'anteposizione' || descriptor === 'retroposizione') return label[descriptor]
   if (descriptor === 'compenso' || !direction) return label[descriptor]
   if (direction === 'rotazione_dx' || direction === 'rotazione_sx') return `${label[descriptor]} ${direction === 'rotazione_dx' ? 'DX' : 'SX'}`
@@ -23,7 +25,7 @@ export function formatOperatorDirection(descriptor: Descriptor, direction?: Clin
 }
 
 /** Geometric relationships require an explicit clinical direction; AP operators never imply axial rotation. */
-export function hasTransverseInferenceDirection(descriptor: Descriptor | undefined, direction?: ClinicalDirection): boolean {
+export function hasTransverseInferenceDirection(descriptor: Descriptor | undefined, direction?: ClinicalDirection, relation?: TransverseRelation): boolean {
   if (descriptor === 'rotation') return direction === 'rotazione_dx' || direction === 'rotazione_sx'
-  return ['dissociazione', 'compenso_crociato', 'taglio_stimato'].includes(descriptor ?? '') && (direction === 'dx' || direction === 'sx')
+  return ['dissociazione', 'compenso_crociato', 'taglio_stimato'].includes(descriptor ?? '') && !!transverseRelationSide(relation)
 }

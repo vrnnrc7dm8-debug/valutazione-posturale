@@ -67,15 +67,15 @@ ma non impedisce le altre misure con riferimenti sufficienti.
 I nuovi descriptor sono `anteposizione`, `retroposizione`, `convergenza`,
 `divergenza`, `dissociazione`, `compenso_crociato`, `taglio_stimato`.
 Non vengono convertiti in `rotation`. Ante/retro conservano lato e direzione
-anteriore/posteriore; le relazioni richiedono una direzione DX/SX scelta dal
-clinico. Le direzioni degli altri piani sono invariate.
+anteriore/posteriore; le relazioni conservano orientamento anatomico e riferimento in campi separati,
+scelti o confermati dal clinico. Le direzioni degli altri piani sono invariate.
 
 La UI distingue misura, osservazione suggerita e pattern confermato. Un cambio
 operatore elimina una direzione incompatibile. Nessun suggerimento entra da solo
 in Myers. Ante/retro non implicano da soli linee rotatorie e non diventano semanticamente
 `rotation`. Dopo conferma contribuiscono alle Spirali e, dove appropriato, alle
 Funzionali attraverso un contesto complessivo: è sufficiente una relazione
-scapolo-pelvica confermata, con direzione esplicita e supportata da misure correnti.
+scapolo-pelvica confermata, con orientamento anatomico esplicito e supportata da misure correnti.
 Lato e intensità derivano dalle relazioni scapolo-pelviche concordanti,
 non dal lato, dal segno o dalla severità del singolo reperto ante/retro.
 Direzioni scapolo-pelviche discordanti o misure primarie mancanti sospendono questo
@@ -89,7 +89,7 @@ Nessun tessuto remoto viene attribuito automaticamente senza evidenza locale. Il
 le sue ripetizioni nei reperti ante/retro non moltiplicano lo score globale.
 Convergenza/divergenza non implicano automaticamente linee rotatorie.
 Dissociazione, compenso crociato e taglio possono sostenere ipotesi Spirali e
-Funzionali solo con conferma, direzione esplicita e indice corrente corrispondente
+Funzionali solo con conferma, orientamento esplicito e indice corrente corrispondente
 per fenomeno, operatore, lato e valore. Le ipotesi trasverse hanno peso dimezzato
 e confidenza massima 55%; il filtro distrettuale evita tessuti distali arbitrari.
 
@@ -103,3 +103,61 @@ SynthPose non è validato per questa vista e per questi repere. Il pannello most
 è consigliata la modalità manuale assistita.» Non offre rilevamento o proposte
 trasverse e non chiama il backend. Backend, pesi e mapping degli altri piani
 restano invariati.
+
+## Relazione, orientamento anatomico e riferimento (semantica corrente)
+
+Il campo opzionale `transverseRelation` è mantenuto in ClinicalObservation,
+PosturalPattern, AlterationSelection e nella provenienza dell’inferenza Myers:
+
+- `relationType`: dissociazione, parallelismo, compenso_crociato oppure shear;
+- `reference`: coppia esplicita di segmenti/assi confrontati;
+- `orientation`: dx_anteposto, sx_anteposto, dx_retroposto, sx_retroposto,
+  oppure indeterminabile;
+- `orientationSource`: suggerimento geometrico o correzione manuale;
+- `referenceSide`: eventuale emibacino di riferimento nel confronto scapulum–ileo;
+- `legacyDirection`: vecchio valore conservato, mai interpretato automaticamente
+  come orientamento anatomico.
+
+Per le relazioni non si usa più `direction = dx/sx`: menu, riepiloghi, report e
+Myers ricevono riferimento e orientamento separati. Le rotazioni assiali e le
+ante/retro autonome conservano i rispettivi operatori e direzioni originali.
+Il menu di modifica propone Relazione, Orientamento anatomico e Riferimento.
+Cambiare riferimento azzera l’orientamento precedente: un’interpretazione di un
+asse non viene trasferita automaticamente a un riferimento diverso.
+
+La linea bicalcaneare unisce Calcagno SX e Calcagno DX ed è il riferimento distale
+primario. Gli indici pelvi–bicalcaneare e scapole–bicalcaneare richiedono solo i
+due calcagni e i repere bilaterali del cingolo, senza secondo raggio. I confronti
+con gli assi completi dei piedi restano distinti e non vengono rinominati.
+
+L’orientamento geometrico confronta il segmento del cingolo con la normale al
+riferimento, orientata verso l’asse cranico anteriore confermato. Se tale verso
+non è determinabile, il sistema lascia l’orientamento indeterminabile: il clinico
+può specificarlo. Il segno dell’angolo da solo non diventa un lato anatomico.
+Il suggerimento geometrico rimane soggetto a conferma e correzione clinica.
+
+Esempi:
+- Dissociazione cingolo pelvico–linea bicalcaneare · Angolo relativo: 7,1° ·
+  Ileo SX anteposto rispetto alla linea bicalcaneare;
+- Dissociazione scapulum–ileo · Scapulum DX anteposto rispetto all’ileo DX;
+- Asimmetria scapolare trasversa · Scapulum SX retroposto rispetto al DX.
+
+DX anteposto e SX retroposto descrivono lo stesso verso relativo della coppia:
+Myers li riconosce senza trasformare il descriptor in rotation. Per le relazioni
+scapolo-pelviche il riscontro calcaneare resta opzionale e modula la confidenza.
+Un orientamento indeterminabile o un riferimento non specificato non determina
+un lato Myers. Il riferimento deve corrispondere a una misura corrente disponibile.
+
+### Compatibilità legacy
+
+La migrazione è differita alla lettura e opera su copie dei dati correnti: sposta
+la direzione generica in `legacyDirection`, identifica il riferimento quando è
+riconoscibile e lascia indeterminabile il verso anatomico ambiguo. Non converte
+SX in SX anteposto e non sostituisce un asse del piede con la linea bicalcaneare.
+Reperti legacy opposti restano distinguibili. I report già archiviati sono
+conservati invariati; nessuna riscrittura di database, revisioni o file storici.
+
+Un reperto con orientamento non determinabile può essere confermato e riportato
+come tale; non viene costretto a una scelta DX/SX e non attribuisce un lato a
+Myers. Il parallelismo può essere registrato senza suggerire coinvolgimento
+rotatorio.

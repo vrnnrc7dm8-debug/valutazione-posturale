@@ -1,3 +1,5 @@
+import { TransverseRelationFields } from './TransverseRelationFields'
+import { isTransverseRelation, normalizeTransverseRelation } from '@/data/transverseRelations'
 import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { formatQuantitativeValue } from '@/data/clinicalThresholds'
@@ -84,7 +86,8 @@ export function AlterationSelector({
 
   return (
     <div className="space-y-2">
-      {selected.map((sel) => {
+      {selected.map((original) => {
+        const sel = normalizeTransverseRelation(original, plane, original.alterationId, [original.instanceId])
         const def = catalog.find((a) => a.id === sel.alterationId)
         const siblings = grouped.get(sel.alterationId) ?? [sel]
         const indexInGroup = siblings.findIndex((s) => s.instanceId === sel.instanceId)
@@ -184,6 +187,7 @@ export function AlterationSelector({
                   </Select>
                 )}
               </div>
+              {plane === 'trasverso' && isTransverseRelation(sel.descriptor) && <TransverseRelationFields value={sel.transverseRelation} phenomenon={sel.alterationId} descriptor={sel.descriptor} onChange={relation => onUpdate(sel.instanceId, { transverseRelation: relation, direction: undefined, descriptor: relation.relationType === 'shear' ? 'taglio_stimato' : relation.relationType === 'compenso_crociato' ? 'compenso_crociato' : 'dissociazione' })} />}
               {allowedDirections.length > 0 && (
                 <div>
                   <Label className="text-[10px]">Direzione</Label>

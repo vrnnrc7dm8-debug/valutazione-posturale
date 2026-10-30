@@ -81,6 +81,7 @@ export interface AnatomicalDetails {
   endLevel?: string
 }
 export interface ClinicalObservation {
+  transverseRelation?: import('@/data/transverseRelations').TransverseRelation
   descriptor?: Descriptor
   id: string
   plane: AnatomicalPlane
@@ -99,6 +100,7 @@ export interface ClinicalObservation {
   notes?: string
 }
 export interface PosturalPattern {
+  transverseRelation?: import('@/data/transverseRelations').TransverseRelation
   descriptor?: Descriptor
   id: string
   plane: AnatomicalPlane

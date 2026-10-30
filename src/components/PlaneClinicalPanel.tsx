@@ -111,7 +111,7 @@ export function PlaneClinicalPanel({
           {onAssessmentChange && <AlterationSelector plane={plane} selected={pipeline.patterns.map(patternSelection)}
             onUpdate={(id, patch) => {
               const ids = new Set(pipeline.patterns.find(p => p.id === id)?.observationIds)
-              onAssessmentChange({ ...assessment, alterations: assessment.alterations.map(a => ids.has(a.instanceId) ? applyClinicalEdit(a, patch) : a), observations: assessment.observations?.map(o => ids.has(o.id) ? { ...o, descriptor: patch.descriptor ?? o.descriptor, side: 'side' in patch ? patch.side : o.side, direction: 'direction' in patch ? patch.direction : o.direction, district: patch.district ?? o.district, severity: patch.severity ?? o.severity, notes: patch.note ?? o.notes, status: patch.status ?? 'modified' } : o) })
+              onAssessmentChange({ ...assessment, alterations: assessment.alterations.map(a => ids.has(a.instanceId) ? applyClinicalEdit(a, patch) : a), observations: assessment.observations?.map(o => ids.has(o.id) ? { ...o, descriptor: patch.descriptor ?? o.descriptor, side: 'side' in patch ? patch.side : o.side, direction: 'direction' in patch ? patch.direction : o.direction, district: patch.district ?? o.district, severity: patch.severity ?? o.severity, transverseRelation: 'transverseRelation' in patch ? patch.transverseRelation : o.transverseRelation, notes: patch.note ?? o.notes, status: patch.status ?? 'modified' } : o) })
             }}
             onRemove={id => {
               const ids = new Set(pipeline.patterns.find(p => p.id === id)?.observationIds)

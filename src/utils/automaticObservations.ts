@@ -32,6 +32,7 @@ export function observationsFromAutoMeasurements(measurements: AutoMeasurement[]
       id, plane: m.plane, ...mapping, descriptor: m.plane === 'trasverso' ? m.clinicalSuggestion?.descriptor ?? 'rotation' : observationDescriptor(mapping.phenomenon, m.plane),
       side: m.side ?? (m.id.endsWith('_destro') ? 'destro' : m.id.endsWith('_sinistro') ? 'sinistro' : undefined),
       direction: m.plane === 'trasverso' ? m.clinicalSuggestion?.direction : mapping.phenomenon === 'rotazione_arto_inferiore' && !['rotazione_dx', 'rotazione_sx'].includes(m.direction ?? '') ? undefined : m.direction, severity: m.severity,
+      transverseRelation: m.plane === 'trasverso' ? m.clinicalSuggestion?.transverseRelation : undefined,
       quantitative: { value: m.numericValue!, unit: m.unit },
       source: 'automatic_measurement', sourceIds: [id], status: 'suggested',
       notes: mapping.phenomenon === 'rotazione_arto_inferiore' ? `${m.value} (stima del segmento; specificare la direzione assiale clinica). ${m.suggestion ?? ''}` : m.observationNote ?? m.suggestion,
@@ -47,7 +48,7 @@ export function mergeAutomaticObservations(persisted: ClinicalObservation[], gen
   const semanticKey = (o: ClinicalObservation) => {
     const direction = ['dislivello_acromiale', 'dislivello_sias', 'inclinazione_linea_bipupillare'].includes(o.phenomenon)
       ? o.direction ?? (o.side === 'destro' ? 'dx' : o.side === 'sinistro' ? 'sx' : undefined) : o.direction
-    return JSON.stringify([o.plane, o.phenomenon, observationDescriptor(o.phenomenon, o.plane, o.descriptor), o.district, o.side, direction])
+    return JSON.stringify([o.plane, o.phenomenon, observationDescriptor(o.phenomenon, o.plane, o.descriptor), o.district, o.side, direction, o.plane === 'trasverso' && o.transverseRelation ? [o.transverseRelation.relationType, o.transverseRelation.reference, o.transverseRelation.referenceSide] : undefined])
   }
   const existing = new Set(persisted.map(semanticKey))
   for (const observation of generated) {

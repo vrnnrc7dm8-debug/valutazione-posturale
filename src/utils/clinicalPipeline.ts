@@ -1,8 +1,9 @@
+import { normalizeTransverseRelation, transverseRelationSide, formatTransverseRelation, isTransverseRelation } from '@/data/transverseRelations'
 import { hasTransverseInferenceDirection } from '@/data/clinicalOperators'
 import { observationDescriptor, formatOperatorDirection } from '@/data/clinicalOperators'
 import { observationsFromAutoMeasurements, mergeAutomaticObservations } from './automaticObservations'
 import type { AutoMeasurement } from './biomechanicsEngine'
-import type { AlterationSelection, ClinicalObservation, PosturalPattern, TissueFunctionalState, PlaneAssessment, AlterationMyersInference, Side } from '@/types'
+import type { AlterationSelection, ClinicalObservation, PosturalPattern, TissueFunctionalState, PlaneAssessment, AlterationMyersInference } from '@/types'
 import { getAlterationsForPlane } from '@/data/planes'
 import { inferMyersForAlteration } from './myersEngine'
 import { isSpinalPhenomenon } from '@/data/tissueDistricts'
@@ -19,14 +20,15 @@ export function canonicalPhenomenon(id: string): string {
 }
 
 export function observationsFromAssessments(planes: PlaneAssessment[]): ClinicalObservation[] {
-  return planes.flatMap(pa => pa.alterations.map(a => {
+  return planes.flatMap(pa => pa.alterations.map(original => {
+    const a = normalizeTransverseRelation(original, pa.plane, original.alterationId, [original.instanceId])
     const definition = getAlterationsForPlane(pa.plane).find(d => d.id === a.alterationId)
     const phenomenon = a.alterationId === 'asse_femoro_tibiale' && a.descriptor === 'rotation' ? 'rotazione_arto_inferiore' : canonicalPhenomenon(a.alterationId)
     const region = a.alterationId.match(/^deviazione_rachidea_(cervicale|toracica|lombare|lombosacrale)$/)?.[1] as NonNullable<PosturalPattern['anatomicalDetails']>['region']
     return {
       id: a.instanceId, plane: pa.plane, district: a.district ?? definition?.district ?? 'globale',
       phenomenon, descriptor: a.descriptor, side: isSpinalPhenomenon(a.alterationId) ? undefined : a.side, direction: a.descriptor === 'compenso' ? undefined : a.direction, severity: a.severity,
-      quantitative: a.quantitative, source: a.source === 'manual' || !a.source ? 'manual' : 'automatic_suggestion',
+      transverseRelation: a.transverseRelation, quantitative: a.quantitative, source: a.source === 'manual' || !a.source ? 'manual' : 'automatic_suggestion',
       sourceIds: [a.suggestionKey ?? a.instanceId], status: a.status ?? (a.source === 'suggested' ? 'suggested' : 'confirmed'),
       anatomicalDetails: phenomenon === 'deviazione_rachidea'
         ? { region: region ?? 'indeterminata', convexity: 'indeterminata', ...a.anatomicalDetails, ...(a.descriptor === 'bend' && (!a.anatomicalDetails?.convexity || a.anatomicalDetails.convexity === 'indeterminata') && (a.direction === 'dx' || a.direction === 'sx') ? { proposedConvexity: a.direction === 'sx' ? 'dx' as const : 'sx' as const } : {}) } : a.anatomicalDetails,
@@ -37,14 +39,15 @@ export function observationsFromAssessments(planes: PlaneAssessment[]): Clinical
 
 export function consolidateObservations(observations: ClinicalObservation[]): PosturalPattern[] {
   const groups = new Map<string, ClinicalObservation[]>()
-  for (const observation of observations) {
+  for (const original of observations) {
+    const observation = normalizeTransverseRelation(original, original.plane, original.phenomenon, original.sourceIds)
     const o = isSpinalPhenomenon(observation.phenomenon) ? { ...observation, side: undefined } : observation
     if (o.status === 'excluded' || o.status === 'suggested') continue
     const details = o.anatomicalDetails
     const phenomenon = canonicalPhenomenon(o.phenomenon)
     const direction = phenomenon === 'anteriorizzazione_capo' && (!o.direction || o.direction === 'anteriore') ? 'anteriorizzazione'
       : ['dislivello_acromiale', 'dislivello_sias', 'inclinazione_linea_bipupillare'].includes(phenomenon) ? o.direction ?? (o.side === 'destro' ? 'dx' : o.side === 'sinistro' ? 'sx' : undefined) : o.direction
-    const key = JSON.stringify([o.plane, observationDescriptor(phenomenon, o.plane, o.descriptor), o.patternId ?? [canonicalPhenomenon(o.phenomenon), o.district, o.side ?? '', direction ?? '',
+    const key = JSON.stringify([o.plane, observationDescriptor(phenomenon, o.plane, o.descriptor), o.transverseRelation && [o.transverseRelation.relationType, o.transverseRelation.reference, o.transverseRelation.orientation, o.transverseRelation.referenceSide, o.transverseRelation.legacyDirection], o.patternId ?? [canonicalPhenomenon(o.phenomenon), o.district, o.side ?? '', direction ?? '',
       details?.region ?? 'indeterminata', details?.level ?? '', details?.apex ?? '', details?.convexity ?? 'indeterminata', details?.startLevel ?? '', details?.endLevel ?? '']])
     groups.set(key, [...(groups.get(key) ?? []), o])
   }
@@ -55,7 +58,7 @@ export function consolidateObservations(observations: ClinicalObservation[]): Po
     return {
       id: `pattern:${key}`, plane: selected.plane, district: selected.district,
       phenomenon: canonicalPhenomenon(selected.phenomenon), descriptor: observationDescriptor(selected.phenomenon, selected.plane, selected.descriptor), side: selected.side,
-      quantitative: selected.quantitative,
+      transverseRelation: selected.transverseRelation, quantitative: selected.quantitative,
       direction: selected.descriptor === 'compenso' ? undefined : selected.direction, severity: selected.severity,
       observationIds: members.map(o => o.id), anatomicalDetails: selected.anatomicalDetails,
       source: sources.size > 1 ? 'mixed' : selected.source === 'manual' ? 'manual' : 'derived',
@@ -73,7 +76,7 @@ export function patternSelection(p: PosturalPattern): AlterationSelection {
     : p.phenomenon === 'deviazione_rachidea' ? 'scoliosi_funzionale' : p.phenomenon
   return {
     instanceId: p.id, alterationId, descriptor: observationDescriptor(p.phenomenon, p.plane, p.descriptor),
-    quantitative: p.quantitative,
+    transverseRelation: p.transverseRelation, quantitative: p.quantitative,
     side: isSpinalPhenomenon(p.phenomenon) ? undefined : p.side, direction: p.descriptor === 'compenso' ? undefined : p.direction, severity: p.severity ?? 'lieve',
     source: p.source === 'manual' ? 'manual' : 'confirmed', status: p.status,
     district: p.district, anatomicalDetails: p.anatomicalDetails, note: p.notes,
@@ -81,7 +84,7 @@ export function patternSelection(p: PosturalPattern): AlterationSelection {
 }
 
 export function inferMyersFromPatterns(patterns: PosturalPattern[], contexts = new Map<string, NonNullable<AlterationSelection['myersContext']>>()): AlterationMyersInference[] {
-  const active = patterns.filter(p => p.status !== 'excluded' && p.status !== 'suggested' && (p.plane !== 'trasverso' || (p.quantitative && Number.isFinite(p.quantitative.value) && (hasTransverseInferenceDirection(p.descriptor, p.direction) || contexts.has(p.id)))))
+  const active = patterns.filter(p => p.status !== 'excluded' && p.status !== 'suggested' && (p.plane !== 'trasverso' || (p.quantitative && Number.isFinite(p.quantitative.value) && (hasTransverseInferenceDirection(p.descriptor, p.direction, p.transverseRelation) || contexts.has(p.id)))))
   const inferences = active.map(p => inferMyersForAlteration(p.plane, { ...patternSelection(p), myersContext: contexts.get(p.id) }))
   return inferences.map(inference => ({ ...inference, lines: inference.lines.map(line => {
     const pattern = active.find(p => p.id === inference.instanceId)!
@@ -121,26 +124,26 @@ export function consolidateTissueEvidence(evidence: TissueFunctionalState[]): Ti
 
 export function runClinicalPipeline(planes: PlaneAssessment[], measurements: AutoMeasurement[] = []) {
   const observations = mergeAutomaticObservations([
-    ...observationsFromAssessments(planes), ...planes.flatMap(p => p.observations ?? []),
+    ...observationsFromAssessments(planes), ...planes.flatMap(p => (p.observations ?? []).map(o => normalizeTransverseRelation(o, p.plane, o.phenomenon, o.sourceIds))),
   ], observationsFromAutoMeasurements(measurements))
   const patterns = consolidateObservations(observations)
   const currentTransverse = observationsFromAutoMeasurements(measurements).filter(o => o.plane === 'trasverso')
-  const matchesCurrent = (p: PosturalPattern) => currentTransverse.some(o => o.phenomenon === p.phenomenon && o.side === p.side && o.descriptor === p.descriptor && o.quantitative?.value === p.quantitative?.value)
+  const matchesCurrent = (p: PosturalPattern) => currentTransverse.some(o => o.phenomenon === p.phenomenon && o.side === p.side && o.descriptor === p.descriptor && o.transverseRelation?.reference === p.transverseRelation?.reference && (o.transverseRelation?.referenceSide ?? (o.side === 'destro' ? 'dx' : o.side === 'sinistro' ? 'sx' : o.side)) === (p.transverseRelation?.referenceSide ?? (p.side === 'destro' ? 'dx' : p.side === 'sinistro' ? 'sx' : p.side)) && o.quantitative?.value === p.quantitative?.value)
   const contexts = new Map<string, NonNullable<AlterationSelection['myersContext']>>()
-  const relations = patterns.filter(p => p.plane === 'trasverso' && matchesCurrent(p) && hasTransverseInferenceDirection(p.descriptor, p.direction) && ['relazione_scapolo_pelvica', 'relazione_cingoli_piedi'].includes(p.phenomenon))
+  const relations = patterns.filter(p => p.plane === 'trasverso' && matchesCurrent(p) && hasTransverseInferenceDirection(p.descriptor, p.direction, p.transverseRelation) && ['relazione_scapolo_pelvica', 'relazione_cingoli_piedi', 'relazione_pelvi_calcagni', 'relazione_scapole_calcagni'].includes(p.phenomenon))
   const girdleRelations = relations.filter(p => p.phenomenon === 'relazione_scapolo_pelvica')
-  const distalRelations = relations.filter(p => p.phenomenon === 'relazione_cingoli_piedi')
-  if (girdleRelations.length && new Set(girdleRelations.map(p => p.direction)).size === 1) {
-    const direction = girdleRelations[0].direction
-    const distalEvidence = !distalRelations.length ? 'absent' : distalRelations.every(p => p.direction === direction) ? 'concordant' : 'discordant'
-    const context = { side: (direction === 'dx' ? 'destro' : 'sinistro') as Side,
+  const distalRelations = relations.filter(p => ['relazione_cingoli_piedi', 'relazione_pelvi_calcagni', 'relazione_scapole_calcagni'].includes(p.phenomenon))
+  if (girdleRelations.length && new Set(girdleRelations.map(p => transverseRelationSide(p.transverseRelation))).size === 1) {
+    const primarySide = transverseRelationSide(girdleRelations[0].transverseRelation)!
+    const distalEvidence = !distalRelations.length ? 'absent' : distalRelations.every(p => transverseRelationSide(p.transverseRelation) === primarySide) ? 'concordant' : 'discordant'
+    const context = { side: primarySide,
       // Optional distal evidence changes confidence, never primary side or intensity.
       intensity: 1 + Math.min(1, girdleRelations.reduce((sum, p) => sum + Math.abs(p.quantitative!.value), 0) / girdleRelations.length / 30),
       confidence: distalEvidence === 'concordant' ? 0.5 : distalEvidence === 'discordant' ? 0.4 : 0.45,
       distalEvidence: distalEvidence as 'absent' | 'concordant' | 'discordant', patternIds: [...girdleRelations, ...distalRelations].map(p => p.id) }
     for (const p of [...girdleRelations, ...patterns.filter(p => p.plane === 'trasverso' && ['anteposizione', 'retroposizione'].includes(p.descriptor ?? '') && matchesCurrent(p) && (p.descriptor === 'anteposizione' ? p.direction === 'anteriore' : p.direction === 'posteriore'))]) contexts.set(p.id, context)
   }
-  const supported = (p: PosturalPattern) => p.plane !== 'trasverso' || matchesCurrent(p) && (hasTransverseInferenceDirection(p.descriptor, p.direction) || contexts.has(p.id))
+  const supported = (p: PosturalPattern) => p.plane !== 'trasverso' || (p.transverseRelation?.reference !== 'scapulum_ileo' || !p.side || p.side === 'bilaterale' || p.transverseRelation.orientation?.startsWith(p.side === 'destro' ? 'dx_' : 'sx_')) && matchesCurrent(p) && (hasTransverseInferenceDirection(p.descriptor, p.direction, p.transverseRelation) || contexts.has(p.id))
   const inferences = inferMyersFromPatterns(patterns.filter(supported), contexts)
   const tissues = consolidateTissueEvidence(supportedTissueEvidence(patterns, inferences))
   const consolidatedPlanes = planes.map(pa => ({ plane: pa.plane, alterations: patterns.filter(p => p.plane === pa.plane).map(patternSelection) }))
@@ -149,6 +152,10 @@ export function runClinicalPipeline(planes: PlaneAssessment[], measurements: Aut
 }
 
 export function formatPattern(p: PosturalPattern): string {
+  if (p.plane === 'trasverso' && isTransverseRelation(p.descriptor)) {
+    const relation = normalizeTransverseRelation(p, p.plane, p.phenomenon, p.observationIds).transverseRelation!
+    return [formatTransverseRelation(relation, p.quantitative), p.severity, p.notes].filter(Boolean).join(' · ')
+  }
   const d = p.anatomicalDetails
   const label = ['tilt_capo', 'shift_capo', 'rotazione_capo'].includes(p.phenomenon) ? 'Capo' : p.phenomenon === 'deviazione_rachidea' && d?.region && d.region !== 'indeterminata' ? `Deviazione ${d.region === 'cervicale' ? 'cervicale' : `rachidea ${d.region.replaceAll('_', '-')}`}` : p.phenomenon.replaceAll('_', ' ')
   return [`${label} — ${formatOperatorDirection(observationDescriptor(p.phenomenon, p.plane, p.descriptor), p.direction)}`, isSpinalPhenomenon(p.phenomenon) ? undefined : p.side, p.severity,
@@ -177,7 +184,7 @@ export function applyClinicalEdit(a: AlterationSelection, patch: Partial<Alterat
 /** Mantiene le osservazioni sorgente, evitando di ripetere gli alias nella presentazione. */
 export function observationSummaries(observations: ClinicalObservation[]): string[] {
   return [...new Set(observations.filter(o => o.status !== 'excluded' && o.status !== 'suggested').map(o =>
-    `${o.plane.replaceAll('_', ' ')}: ${canonicalPhenomenon(o.phenomenon).replaceAll('_', ' ')} · ${isSpinalPhenomenon(o.phenomenon) ? 'rachide' : o.side ?? 'lato indeterminato'} · ${formatOperatorDirection(observationDescriptor(o.phenomenon, o.plane, o.descriptor), o.direction)} · ${o.severity ?? 'grado indeterminato'}${o.quantitative ? ` · ${o.quantitative.value} ${o.quantitative.unit}` : ''}`,
+    o.plane === 'trasverso' && o.transverseRelation ? `${formatTransverseRelation(o.transverseRelation, o.quantitative)} · ${o.severity ?? 'grado indeterminato'}` : `${o.plane.replaceAll('_', ' ')}: ${canonicalPhenomenon(o.phenomenon).replaceAll('_', ' ')} · ${isSpinalPhenomenon(o.phenomenon) ? 'rachide' : o.side ?? 'lato indeterminato'} · ${formatOperatorDirection(observationDescriptor(o.phenomenon, o.plane, o.descriptor), o.direction)} · ${o.severity ?? 'grado indeterminato'}${o.quantitative ? ` · ${o.quantitative.value} ${o.quantitative.unit}` : ''}`,
   ))]
 }
 

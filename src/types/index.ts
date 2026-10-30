@@ -312,6 +312,7 @@ export interface PhotoSlot {
 export type AlterationSource = 'manual' | 'suggested' | 'confirmed'
 
 export interface AlterationSelection {
+  transverseRelation?: import('@/data/transverseRelations').TransverseRelation
   /** Ephemeral Myers context from confirmed scapular–pelvic relationships with optional distal evidence. */
   myersContext?: { side: Side; intensity: number; confidence: number; patternIds: string[]; distalEvidence?: 'absent' | 'concordant' | 'discordant' }
 
@@ -369,6 +370,7 @@ export interface AlterationLineInference {
   sourceDescriptor?: Descriptor
   sourceDirection?: ClinicalDirection
   sourceRegion?: string
+  sourceTransverseRelation?: import('@/data/transverseRelations').TransverseRelation
   contextPatternIds?: string[]
   distalEvidence?: 'absent' | 'concordant' | 'discordant'
   lineId: MyofascialLineId
