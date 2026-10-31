@@ -1,3 +1,4 @@
+import { isReportEligibleLandmark } from './landmarkValidation'
 import { analyzePosterior, type PosteriorAnalysisOptions } from './posteriorAnalysis'
 import { analyzeTransverse } from './transverseAnalysis'
 import {
@@ -34,6 +35,8 @@ export interface BiomechanicalAxis {
 }
 
 export interface AutoMeasurement {
+  landmarkValidated?: boolean
+  spinalCurve?: import('./spinalCurveEvidence').CompositeSpinalCurveEvidence
   reportEligible?: boolean
   patternEvidence?: import('@/types/patternRecognition').GeometricPatternEvidence
   clinicalSuggestion?: import('@/types/patternRecognition').ElementarySuggestion & { transverseRelation?: import('@/data/transverseRelations').TransverseRelation }
@@ -137,7 +140,7 @@ export function computeAutoMeasurements(
   landmarks: PlacedLandmark[],
   options: PosteriorAnalysisOptions = {},
 ): AutoMeasurement[] {
-  if (plane === 'trasverso') return analyzeTransverse(landmarks).measurements
+  if (plane === 'trasverso') return analyzeTransverse(landmarks).measurements.map(m => ({ ...m, landmarkValidated: landmarks.length > 0 && landmarks.every(isReportEligibleLandmark) }))
   const results: AutoMeasurement[] = []
   const config = getPlaneConfig(plane)
 
@@ -365,7 +368,7 @@ export function computeAutoMeasurements(
     })
   }
 
-  return results
+  return results.map(m => ({ ...m, landmarkValidated: m.landmarkValidated ?? (landmarks.length > 0 && landmarks.every(isReportEligibleLandmark)) }))
 }
 
 export type { LevelDifference }

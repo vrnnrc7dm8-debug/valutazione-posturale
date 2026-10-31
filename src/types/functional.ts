@@ -81,8 +81,18 @@ export interface FunctionalLine extends FunctionalProvenance {
   linkedLineIds: MyofascialLineId[]
 }
 export interface GlobalTensegrityPattern extends FunctionalProvenance {
+  name?: string
+  severity?: import('./index').Severity
+  prevalentSide?: 'destro'|'sinistro'
+  clinicalDirection?: string
+  posturalPatternId?: string
+  supportedPlanes?: AnatomicalPlane[]
+  supportScore?: number
+  supportTypes?: import('./patternRecognition').GlobalSupportType[]
+  regionsInvolved?: import('./patternRecognition').PatternRegion[]
+  explanation?: string[]
   id: string
-  kind: 'regional_continuity' | 'torsional' | 'global_tensegrity'
+  kind: 'regional_continuity' | 'torsional' | 'global_tensegrity' | 'recognized_global'
   localPatternIds: string[]
   edgeIds: string[]
   direction?: 'DX→SX' | 'SX→DX'

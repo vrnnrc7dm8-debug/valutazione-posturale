@@ -92,7 +92,8 @@ describe('rete funzionale: scenari sintetici, non regole cliniche', () => {
     }
     expect(JSON.parse(JSON.stringify(result))).toEqual(result)
     const html = renderToStaticMarkup(createElement(FunctionalNetworkPanel, { model: result }))
-    expect(html).toContain('PATTERN GLOBALI'); expect(html).toContain('sourceObservationIds')
+    expect(html).toContain('PATTERN GLOBALI'); expect(html).not.toContain('sourceObservationIds')
+    expect(renderToStaticMarkup(createElement(FunctionalNetworkPanel, { model: result, debug: true }))).toContain('sourceObservationIds')
     expect(functionalModelToLines(result).join('\n')).toContain('non misura di forza')
   })
   it('un recurvatum isolato non determina automaticamente lo stato dei tessuti né tessuti cervicali', () => {
@@ -110,14 +111,15 @@ it('valuta ogni tessuto separatamente, senza copiare stato o lato dalla linea', 
     { tissueName: 'tibiale anteriore', side: 'sinistro', state: 'neutral', method: 'esame clinico dedicato' },
     { tissueName: 'suboccipitali', side: 'sinistro', state: 'concentric', method: 'fuori distretto' },
   ] })
-  const result = model([assessed])
+  expect(model([assessed]).tissues).toEqual([]) // No tissue inference before a global functional context.
+  const result = model([assessed, kneeRight, pelvis, relation])
   expect(result.tissues.find(t => t.name === 'gastrocnemio')?.state).toBe('concentric')
   expect(result.tissues.find(t => t.name === 'soleo')?.state).toBe('eccentric')
   expect(result.tissues.find(t => t.name === 'tibiale anteriore')?.localIndex).toBe(0)
   expect(result.tissues.some(t => t.name === 'suboccipitali' || t.side === 'destro')).toBe(false)
   expect(result.tissues.every(t => t.contralateral === 'not_comparable')).toBe(true)
   const conflict = { ...assessed, id: 'contradiction', functionalTissueFindings: [{ tissueName: 'gastrocnemio', side: 'sinistro' as const, state: 'eccentric' as const, method: 'secondo riscontro' }] }
-  expect(model([assessed, conflict]).tissues.find(t => t.name === 'gastrocnemio')?.state).toBe('undetermined')
+  expect(model([assessed, conflict, kneeRight, pelvis, relation]).tissues.find(t => t.name === 'gastrocnemio')?.state).toBe('undetermined')
   const noMethod = { ...assessed, functionalTissueFindings: assessed.functionalTissueFindings!.map(f => ({ ...f, method: '' })) }
   expect(model([noMethod]).tissues).toEqual([])
 })

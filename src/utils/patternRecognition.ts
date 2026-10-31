@@ -1,3 +1,5 @@
+import { regionalClinicalSummary, bilateralHeadSummary } from './regionalClinicalSummary'
+import { corroborateGlobalPosturalPattern } from './clinicalCorroboration'
 import type { ClinicalObservation, AnatomicalPlane, PosturalPattern, MyofascialLineId } from '@/types'
 import type { AutoMeasurement } from './biomechanicsEngine'
 import type { PatternEvidence, PatternRegion, PatternRecognitionResult, RecognizedGlobalPattern } from '@/types/patternRecognition'
@@ -48,7 +50,10 @@ function sourceDirection(o: ClinicalObservation): PatternEvidence['direction'] {
   if(side&&o.transverseRelation)return side==='destro'?'DX→SX':'SX→DX'
   if(o.descriptor==='anteposizione')return 'anteriore'
   if(o.descriptor==='retroposizione')return 'posteriore'
-  if(o.descriptor==='bend'&&(o.anatomicalDetails?.convexity==='dx'||o.anatomicalDetails?.convexity==='sx'))return o.anatomicalDetails.convexity
+  if(o.descriptor==='bend') {
+    if(o.anatomicalDetails?.convexity==='dx'||o.anatomicalDetails?.convexity==='sx')return o.anatomicalDetails.convexity
+    if(o.direction==='dx'||o.direction==='sx')return o.direction==='dx'?'sx':'dx'
+  }
   if(['indeterminabile','indeterminata','non_determinabile','non_specificato'].includes(o.direction as string))return undefined
   if(o.direction)return o.direction
   if(/anteriorizzazione|forward_head/.test(o.phenomenon))return 'anteriore'
@@ -72,9 +77,9 @@ export function extractPatternEvidence(observations: ClinicalObservation[], meas
     if(!region)continue
     const dir=meta?.shape??meta?.convexityDirection??sourceDirection(mapped)
     result.push({id,plane:m.plane,region,tags:meta?.tags??tagsFor(mapped),independenceKey:meta?.independenceKey??id,direction:dir,
-      side:m.side??mapped.side??(region==='lower_limb'&&m.plane.startsWith('sagittale_')?(m.plane==='sagittale_destro'?'destro':'sinistro'):undefined),severity:m.severity,value:m.numericValue===0?0:m.numericValue,unit:m.unit,description:`${m.label}: ${m.value}${m.observationNote?` · ${m.observationNote}`:''}`,
-      multiSegment:meta?.multiSegment??false,confirmed:false,reportEligible:!!dir, bendDirection:meta?.bendDirection,convexityDirection:meta?.convexityDirection,
-      sourceObservationIds:[],sourceMeasurementIds:[id],sourcePatternIds:[]})
+      reference:mapped.transverseRelation?.reference??meta?.landmarkIds.join('|')??mapped.phenomenon,side:m.side??mapped.side??(['lower_limb','head','cervical'].includes(region)&&m.plane.startsWith('sagittale_')?(m.plane==='sagittale_destro'?'destro':'sinistro'):undefined),severity:m.severity,value:m.numericValue===0?0:m.numericValue,unit:m.unit,description:`${m.label}: ${m.value}${m.observationNote?` · ${m.observationNote}`:''}`,
+      multiSegment:meta?.multiSegment??false,confirmed:false,landmarkValidated:m.landmarkValidated===true,reportEligible:!!dir, bendDirection:meta?.bendDirection,convexityDirection:meta?.convexityDirection,
+      sourceObservationIds:[],sourceMeasurementIds:unique([id,...(m.spinalCurve?.sourceMeasurementIds??[])]),sourcePatternIds:[]})
   }
   for(const o of observations.filter(o=>o.status==='confirmed'||o.status==='modified')) {
     const region=observationRegion(o),direction=sourceDirection(o)
@@ -82,12 +87,15 @@ export function extractPatternEvidence(observations: ClinicalObservation[], meas
     const sourceIds=o.sourceIds.filter(id=>id.startsWith('automatic_measurement:'))
     const current=measurements.find(m=>sourceIds.includes(`automatic_measurement:${m.plane}:${m.id}`))
     const meta=current?.patternEvidence
+    const changedOperator = current?.clinicalSuggestion && current.clinicalSuggestion.descriptor !== o.descriptor
+    const semanticTags = (meta?.tags??[]).filter(t=>!changedOperator||!['spinal_curve','thoracic_curve','thoracolumbar_curve','lumbar_curve','head_shift','head_tilt','tilt','shift','axial_rotation'].includes(t))
+    const invalidDirection = ['indeterminabile','indeterminata','non_determinabile'].includes(o.direction as string)
     const invalidReference=o.transverseRelation?.reference==='non_specificato'||o.transverseRelation?.orientation==='indeterminabile'
-    result.push({id:`observation:${o.id}`,plane:o.plane,region,tags:unique([...tagsFor(o),...(meta?.tags??[])]),independenceKey:meta?.independenceKey??sourceIds[0]??`observation:${o.id}`,direction,side:o.side??(region==='lower_limb'&&o.plane.startsWith('sagittale_')?(o.plane==='sagittale_destro'?'destro':'sinistro'):undefined),severity:o.severity??'lieve',value:o.quantitative?.value,unit:o.quantitative?.unit,
+    result.push({id:`observation:${o.id}`,plane:o.plane,region,tags:unique([...tagsFor(o),...semanticTags]),independenceKey:meta?.independenceKey??sourceIds[0]??`observation:${o.id}`,direction,reference:o.transverseRelation?.reference??meta?.landmarkIds.join('|')??o.phenomenon,side:o.side??(['lower_limb','head','cervical'].includes(region)&&o.plane.startsWith('sagittale_')?(o.plane==='sagittale_destro'?'destro':'sinistro'):undefined),severity:o.severity??'lieve',value:o.quantitative?.value,unit:o.quantitative?.unit,
       description:`${o.phenomenon.replaceAll('_',' ')} · ${direction??'direzione da verificare'}${o.quantitative?` · ${o.quantitative.value} ${o.quantitative.unit}`:''}`,
-      multiSegment:meta?.multiSegment??false,confirmed:true,reportEligible:!!direction&&!invalidReference,
-      bendDirection:o.descriptor==='bend'&&(o.direction==='dx'||o.direction==='sx')?o.direction:undefined,convexityDirection:o.anatomicalDetails?.convexity==='indeterminata'?undefined:o.anatomicalDetails?.convexity,
-      sourceObservationIds:[o.id],sourceMeasurementIds:unique([...sourceIds,...(o.quantitative?[`recorded_measurement:${o.id}`]:[])]),sourcePatternIds:patterns.filter(p=>p.observationIds.includes(o.id)).map(p=>p.id)})
+      multiSegment:meta?.multiSegment??false,confirmed:true,landmarkValidated:current?.landmarkValidated===true,reportEligible:!!direction&&!invalidReference&&!invalidDirection&&!(o.descriptor==='bend'&&(o.direction==='dx'||o.direction==='sx')&&o.anatomicalDetails?.convexity===o.direction),
+      bendDirection:o.descriptor==='bend'&&(o.direction==='dx'||o.direction==='sx')?o.direction:undefined,convexityDirection:o.descriptor==='bend'?(o.anatomicalDetails?.convexity==='dx'||o.anatomicalDetails?.convexity==='sx'?o.anatomicalDetails.convexity:o.direction==='dx'?'sx':o.direction==='sx'?'dx':undefined):undefined,
+      sourceObservationIds:[o.id],sourceMeasurementIds:unique([...sourceIds,...(current?.spinalCurve?.sourceMeasurementIds??[]),...(o.quantitative?[`recorded_measurement:${o.id}`]:[])]),sourcePatternIds:patterns.filter(p=>p.observationIds.includes(o.id)).map(p=>p.id)})
   }
   // Shape is derived from the two authoritative curve components, never another independent vote.
   for (const shape of result.filter(e => e.tags.includes('spinal_shape'))) {
@@ -100,7 +108,9 @@ export function extractPatternEvidence(observations: ClinicalObservation[], meas
     shape.direction = actual
     shape.tags = shape.tags.filter(t => !t.startsWith('shape_')).concat(`shape_${actual}`)
     shape.description = `Configurazione fotografica a ${actual}, derivata dai componenti: ${offsets.map(e => e.description).join('; ')}`
+    shape.severity = maxSeverity(offsets)
     shape.confirmed = offsets.every(e => e.confirmed)
+    shape.landmarkValidated = offsets.every(e => e.landmarkValidated===true)
     Object.assign(shape, mergeProvenance([shape, ...offsets]))
   }
   // Bilateral comparison is relational evidence, not an extra independent measurement.
@@ -112,7 +122,7 @@ export function extractPatternEvidence(observations: ClinicalObservation[], meas
     const polarity=(e:PatternEvidence)=>['dx','rotazione_dx','valgo','extrarotazione','anteriore','anteriorizzazione'].includes(e.direction??'')?1:['sx','rotazione_sx','varo','intrarotazione','posteriore','posteriorizzazione'].includes(e.direction??'')?-1:0
     const opposite=right.some(r=>left.some(l=>polarity(r)*polarity(l)<0))
     if(!opposite&&new Set(group.map(e=>e.severity)).size===1)continue
-    result.push({id:`interlateral:${category}`,plane:group[0].plane,region:'lower_limb',tags:[opposite?'lower_opposition':'lower_asymmetry'],independenceKey:`bilateral:${category}`,direction:opposite?'opposto':undefined,derived:true,severity:maxSeverity(group),description:opposite?'Organizzazione opposta DX/SX':'Alterazione bilaterale asimmetrica',multiSegment:false,confirmed:group.every(e=>e.confirmed),reportEligible:true,
+    result.push({id:`interlateral:${category}`,plane:group[0].plane,region:'lower_limb',tags:[opposite?'lower_opposition':'lower_asymmetry'],independenceKey:`bilateral:${category}`,direction:opposite?'opposto':undefined,derived:true,severity:maxSeverity(group),description:opposite?'Organizzazione opposta DX/SX':'Alterazione bilaterale asimmetrica',multiSegment:false,confirmed:group.every(e=>e.confirmed),landmarkValidated:group.every(e=>e.landmarkValidated===true),reportEligible:true,
       ...mergeProvenance(group)})
   }
   return [...new Map(result.map(e => [e.id,e])).values()]
@@ -150,7 +160,7 @@ export function buildMultiplanarGlobalPatterns(observations:ClinicalObservation[
     const sides = unique(lower.flatMap(e=>e.side&&e.side!=='bilaterale'?[e.side]:[]))
     const normalOpposite = sides.length===1&&evidence.some(e=>e.region==='lower_limb'&&e.side&&e.side!==sides[0]&&e.severity==='normale'&&lower.some(l=>e.tags.some(t=>['knee_sagittal','axial_rotation','tilt','shift'].includes(t)&&l.tags.includes(t))))
     const bilateralOrganization = region!=='lower_limb'?undefined:normalOpposite?'unilateral_alteration' as const:sources.some(e=>e.tags.includes('lower_opposition'))?'opposite' as const:sides.length<2?'not_comparable' as const:sources.some(e=>e.tags.includes('lower_asymmetry'))?'asymmetric' as const:new Set(lower.map(e=>e.severity)).size===1?'symmetric' as const:'bilateral_alteration' as const
-    return{id:`regional:${region}`,region,bilateralOrganization,evidenceIds:sources.map(e=>e.id),supportedPlanes:unique(sources.map(e=>e.plane)),directions:unique(sources.flatMap(e=>e.direction?[e.direction]:[])),severity:maxSeverity(sources),confirmed:sources.every(e=>e.confirmed),...mergeProvenance(sources)}
+    return{id:`regional:${region}`,region,bilateralOrganization,...regionalClinicalSummary(region,sources,measurements,patterns),evidenceIds:sources.map(e=>e.id),supportedPlanes:unique(sources.map(e=>e.plane)),directions:unique(sources.flatMap(e=>e.direction?[e.direction]:[])),severity:maxSeverity(sources),confirmed:sources.every(e=>e.confirmed),...mergeProvenance(sources)}
   })
   const unresolvedPotentialPatterns:PatternRecognitionResult['unresolvedPotentialPatterns']=[]
   const globalPatterns:RecognizedGlobalPattern[]=[]
@@ -187,6 +197,17 @@ export function buildMultiplanarGlobalPatterns(observations:ClinicalObservation[
   }
   if(!measurements.some(m=>m.id==='post_cranial_tilt'))unresolvedPotentialPatterns.push({signatureId:'posterior_head_tilt',reason:'Tilt capo non valutabile senza riferimenti cranici bilaterali visibili.',missingEvidence:['mastoide DX','mastoide SX']})
   if(!evidence.some(e=>(e.region==='head'||e.region==='cervical')&&e.tags.includes('axial_rotation')&&e.reportEligible))unresolvedPotentialPatterns.push({signatureId:'head_axial_rotation',reason:'Rotazione assiale non deducibile da occipite–C7; manca un riferimento orientativo indipendente.',missingEvidence:['riferimenti cranici bilaterali e orientamento clinico']})
+  const provisional:PatternRecognitionResult={version:'pattern-recognition-v1',evidence,regionalPatterns,regionalRelations:[],globalPatterns,unresolvedPotentialPatterns}
+  for (const global of globalPatterns) {
+    const regional = regionalPatterns.filter(r=>global.regionalPatternIds.includes(r.id))
+    global.explanation = unique(regional.flatMap(r=>r.components??[]).concat(global.explanation.map(text=>text.split(' · Riferimenti:')[0]).filter(text=>!text.includes('Configurazione fotografica a'))))
+    const corroboration=corroborateGlobalPosturalPattern(global,provisional)
+    global.supportScore=corroboration.supportScore; global.supportTypes=corroboration.supportTypes
+    global.corroboration={eligible:corroboration.eligible,reasons:corroboration.reasons}
+    const bilateral=patterns.find(p=>p.bilateral&&p.observationIds.some(id=>global.sourceObservationIds.includes(id)))
+    if(bilateral?.bilateral?.dominantSide)global.prevalentSide=bilateral.bilateral.dominantSide
+    else global.prevalentSide=bilateralHeadSummary(evidence.filter(e=>global.evidenceIds.includes(e.id)))?.dominantSide
+  }
   const regionalRelations = buildRegionalRelations(evidence,regionalPatterns)
   return{version:'pattern-recognition-v1',evidence,regionalPatterns,regionalRelations,globalPatterns,unresolvedPotentialPatterns}
 }

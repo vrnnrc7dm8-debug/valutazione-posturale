@@ -1,5 +1,9 @@
 # Rete funzionale bilaterale e tensegrità
 
+Aggiornamento: le soglie composite, il consolidamento bilaterale e il gate funzionale
+attuali sono descritti in [corroborazione funzionale](spinal-functional-corroboration.md).
+Le regole di conferma e le soglie riportate sotto descrivono la fase precedente.
+
 ## Architettura
 
 Prima: geometria (`biomechanicsEngine`) → osservazioni confermate → consolidamento

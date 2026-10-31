@@ -1,3 +1,4 @@
+import { mergeFunctionalGlobalMyersResults } from './functionalGlobalMyers'
 import { imageAspectRatio } from './imageAspectRatio'
 import { formatTransverseRelation, isTransverseRelation } from '@/data/transverseRelations'
 import { runClinicalPipeline, clinicalReportPipeline, formatPattern } from './clinicalPipeline'
@@ -259,7 +260,7 @@ export function generateClinicalReport(
   const autoMeasurements = collectReportMeasurements(photos)
   const pipeline = clinicalReportPipeline(runClinicalPipeline(planeAssessments, autoMeasurements), autoMeasurements)
   planeAssessments = pipeline.consolidatedPlanes
-  myofascialResults = analyzeAllPlanes(pipeline.myersPlanes)
+  myofascialResults = mergeFunctionalGlobalMyersResults(analyzeAllPlanes(pipeline.myersPlanes),pipeline.functionalGlobalInferences)
 
   const planeScores = planeAssessments.map((pa) =>
     scorePlaneAssessment(pa, autoMeasurements, pipeline.patternRecognition),
@@ -282,9 +283,9 @@ export function generateClinicalReport(
     const planeAlts = pa?.alterations ?? []
     const planeAuto = autoMeasurements.filter((m) => m.plane === plane && m.reportEligible !== false)
     const drawnMeasurements = annotationMeasurements(photo)
-    const planeMyers = analyzeAllPlanes(
+    const planeMyers = mergeFunctionalGlobalMyersResults(analyzeAllPlanes(
       pipeline.myersPlanes.filter(p => p.plane === plane),
-    )
+    ), pipeline.functionalGlobalInferences.filter(i => pipeline.functionalModel.globalPatterns.some(g => g.id === i.instanceId && g.supportedPlanes?.includes(plane))))
 
     return {
       plane,
@@ -317,7 +318,7 @@ export function generateClinicalReport(
   const rankedTissueFindings: ReturnType<typeof analyzeAllTissues> = []
 
   const baseReport: ClinicalReportData = {
-    clinicalPipeline: { patternRecognition: pipeline.patternRecognition, functionalModel: pipeline.functionalModel, inferences: pipeline.inferences, observations: pipeline.observations.filter(o => o.status !== 'excluded' && o.status !== 'suggested'), patterns: pipeline.patterns, tissues: pipeline.tissues },
+    clinicalPipeline: { functionalGlobalInferences: pipeline.functionalGlobalInferences, patternRecognition: pipeline.patternRecognition, functionalModel: pipeline.functionalModel, inferences: pipeline.inferences, observations: pipeline.observations.filter(o => o.status !== 'excluded' && o.status !== 'suggested'), patterns: pipeline.patterns, tissues: pipeline.tissues },
     sections,
     analyzedPlanes: sections.map((s) => s.planeLabel),
     mainAlterations: allAlterations.map((a) => {
@@ -381,7 +382,7 @@ export function runFullAnalysis(
   const autoMeasurements = collectReportMeasurements(photos)
   const pipeline = runClinicalPipeline(planeAssessments, autoMeasurements)
   const consolidatedPlanes = pipeline.consolidatedPlanes
-  const myofascialResults = analyzeAllPlanes(pipeline.myersPlanes)
+  const myofascialResults = mergeFunctionalGlobalMyersResults(analyzeAllPlanes(pipeline.myersPlanes),pipeline.functionalGlobalInferences)
 
   const planeScores = consolidatedPlanes.map((pa) =>
     scorePlaneAssessment(pa, autoMeasurements, pipeline.patternRecognition),

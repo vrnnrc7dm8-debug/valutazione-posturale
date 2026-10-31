@@ -20,6 +20,7 @@ export interface PatternEvidence extends FunctionalProvenance {
   region: PatternRegion
   tags: string[]
   independenceKey: string
+  reference?: string
   direction?: ClinicalDirection | 'C' | 'S' | 'opposto' | 'DX→SX' | 'SX→DX'
   side?: Side
   severity: Severity | 'normale'
@@ -29,11 +30,17 @@ export interface PatternEvidence extends FunctionalProvenance {
   multiSegment: boolean
   derived?: boolean
   confirmed: boolean
+  landmarkValidated?: boolean
   reportEligible: boolean
   bendDirection?: 'dx' | 'sx'
   convexityDirection?: 'dx' | 'sx'
 }
 export interface RegionalPosturalPattern extends FunctionalProvenance {
+  name?: string
+  components?: string[]
+  interpretation?: string
+  convexityDirection?: 'dx'|'sx'
+  bendDirection?: 'dx'|'sx'
   bilateralOrganization?: 'symmetric' | 'asymmetric' | 'unilateral_alteration' | 'bilateral_alteration' | 'opposite' | 'not_comparable'
   id: string
   region: PatternRegion
@@ -43,7 +50,12 @@ export interface RegionalPosturalPattern extends FunctionalProvenance {
   severity: Severity
   confirmed: boolean
 }
+export type GlobalSupportType = 'geometricSupport'|'clinicalObservationSupport'|'multiplanarSupport'|'contralateralSupport'
 export interface RecognizedGlobalPattern extends FunctionalProvenance {
+  supportScore?: number
+  supportTypes?: GlobalSupportType[]
+  corroboration?: { eligible: boolean; reasons: string[] }
+  prevalentSide?: 'destro'|'sinistro'
   id: string
   signatureId: string
   name: string

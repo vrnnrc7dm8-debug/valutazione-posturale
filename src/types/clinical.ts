@@ -101,6 +101,10 @@ export interface ClinicalObservation {
   notes?: string
 }
 export interface PosturalPattern {
+  sourceObservationIds?: string[]
+  sourceMeasurementIds?: string[]
+  supportedPlanes?: AnatomicalPlane[]
+  bilateral?: { classification: 'symmetric'|'asymmetric'|'not_comparable'; dominantSide?: 'destro'|'sinistro'; right?: QuantitativeValue; left?: QuantitativeValue; sourcePatternIds: string[]; sourceObservationIds: string[]; sourceMeasurementIds: string[] }
   transverseRelation?: import('@/data/transverseRelations').TransverseRelation
   descriptor?: Descriptor
   id: string

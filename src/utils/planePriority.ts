@@ -16,10 +16,17 @@ export function computePlanePriority(assessment:PlaneAssessment,measurements:Aut
   ]
   const regions=new Map<PatternRegion,number>()
   for(const s of sources)regions.set(s.region,Math.max(regions.get(s.region)??0,SEVERITY[s.severity]*CENTRALITY[s.region]*(s.spinal?1.3:1)))
-  const primary=Math.max(...regions.values(),0),diversity=Math.min(2,Math.max(0,regions.size-1)*.5),multi=sources.some(s=>s.multi)?1:0,compensation=sources.some(s=>s.compensation)?1:0
+  const curves=measurements.filter(m=>m.plane===plane&&m.reportEligible!==false&&m.spinalCurve?.present)
+  const segmentCount=Math.max(...curves.map(m=>m.spinalCurve?.segmentCount??0),0)
+  const primary=Math.max(...regions.values(),0),diversity=Math.min(2,Math.max(0,regions.size-1)*.5)
+  const multi=sources.some(s=>s.multi)?Math.min(1.5,1+Math.max(0,segmentCount-2)*.25):0
+  const compensation=sources.some(s=>s.compensation)||curves.some(m=>m.spinalCurve?.lowerCompensationDirection)?1:0
+  const spinal=sources.some(s=>s.spinal)
+  const cervical=spinal&&regions.has('cervical')?.5:0
+  const girdle=spinal&&(regions.has('scapular')||regions.has('pelvic'))?.5:0
   const cross=recognition?.globalPatterns.some(g=>g.supportedPlanes.includes(plane)&&supportedPlaneFamilies(g.supportedPlanes).length>=2)?1:0
-  const score=Math.round((primary+diversity+multi+compensation+cross)*100)/100
+  const score=Math.round((primary+diversity+multi+compensation+cross+cervical+girdle)*100)/100
   const priority=score>=10?'alta':score>=5?'media':'bassa'
   const evaluable=(recognition?recognition.evidence.some(e=>e.plane===plane&&e.reportEligible):sources.length>0)||measurements.some(m=>m.plane===plane&&Number.isFinite(m.numericValue)&&m.reportEligible!==false)
-  return{priority,score,evaluable,reasons:[`Massimo contributo anatomico: ${primary.toFixed(2)}`,`Regioni valutate: ${regions.size}`,`Supporto multisegmentario: ${multi? 'sì':'no'}`,`Relazioni compensatorie: ${compensation?'sì':'no'}`,`Supporto multiplanare: ${cross?'sì':'no'}`]}
+  return{priority,score,evaluable,reasons:[`Massimo contributo anatomico: ${primary.toFixed(2)}`,`Regioni valutate: ${regions.size}`,`Segmenti rachidei misurati: ${segmentCount}`,`Coinvolgimento cervicale: ${cervical}`,`Cingoli associati: ${girdle}`,`Supporto multisegmentario: ${multi? 'sì':'no'}`,`Relazioni compensatorie: ${compensation?'sì':'no'}`,`Supporto multiplanare: ${cross?'sì':'no'}`]}
 }

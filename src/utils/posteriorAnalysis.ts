@@ -1,3 +1,4 @@
+import { computeSpinalCurveEvidence } from './spinalCurveEvidence'
 import type { PlacedLandmark, Point2D, ClinicalDirection } from '@/types'
 import type { AutoMeasurement } from './biomechanicsEngine'
 import type { GeometricPatternEvidence, ElementarySuggestion } from '@/types/patternRecognition'
@@ -26,7 +27,7 @@ export function analyzePosterior(landmarks: PlacedLandmark[], options: Posterior
   const add = (id: string, label: string, value: number, unit: 'gradi'|'percentuale', meta: GeometricPatternEvidence, suggestion?: ElementarySuggestion, dir = direction(value)) => {
     const severity = unit === 'gradi' ? autoSeverityFromDegrees(value, CLINICAL_THRESHOLDS.plumb_line_gradi) : severityFromNormalizedMagnitude(value / 100, CLINICAL_THRESHOLDS.deviazione_spinous_posterior)
     measurements.push({ id, label, value: `${round(value)}${unit === 'gradi' ? '°' : '% larghezza immagine'}${dir ? ` · ${dir.toUpperCase()}` : ''}`, numericValue: round(value), unit, severity, plane:'frontale_posteriore', direction: dir,
-      reportEligible: !!sign && (unit !== 'gradi' || !!options.imageAspectRatio), patternEvidence: meta, clinicalSuggestion: suggestion && dir ? { ...suggestion, direction: suggestion.direction ?? dir } : undefined,
+      landmarkValidated: true, reportEligible: !!sign && (unit !== 'gradi' || !!options.imageAspectRatio), patternEvidence: meta, clinicalSuggestion: suggestion && dir ? { ...suggestion, direction: suggestion.direction ?? dir } : undefined,
       observationNote: `Riferimenti: ${meta.landmarkIds.join(' → ')}.${unit === 'gradi' && !options.imageAspectRatio ? ' Angolo nel sistema normalizzato; rapporto immagine non disponibile.' : ''}` })
   }
   const c7=get('cervicale_c7'),t6=get('toracico_t6'),l2=get('lombare_l2'),occ=get('occipite')
@@ -43,16 +44,9 @@ export function analyzePosterior(landmarks: PlacedLandmark[], options: Posterior
       const convex=direction(offset) as 'dx'|'sx'|undefined,bend=convex === 'dx' ? 'sx' : convex === 'sx' ? 'dx' : undefined
       add(`post_chord_${id}`,`${id === 'toracico_t6' ? 'T6' : 'T11'} — offset signed dalla corda C7–L2`,offset*100,'percentuale', { region,tags:['spinal_curve','frontal',region === 'thoracic' ? 'thoracic_curve' : 'thoracolumbar_curve'], independenceKey:`posterior:curve:${id}`,landmarkIds:['cervicale_c7',id,'lombare_l2'],multiSegment:true,bendDirection:bend,convexityDirection:convex }, {phenomenon:'deviazione_rachidea',district:region === 'thoracic' ? 'toracica' : 'toraco_lombare',descriptor:'bend',direction:bend,anatomicalDetails:{region:region === 'thoracic' ? 'toracica' : 'toraco_lombare',convexity:convex,apex:id === 'toracico_t6' ? 'T6' : 'T11'}})
     }
-    if (offsets.length === 2 && offsets.every(v => Math.abs(v) < CLINICAL_THRESHOLDS.deviazione_spinous_posterior.detection)) {
-      add('post_spine_neutral', 'Polilinea entro le soglie fotografiche configurate', 0, 'percentuale', { region:'thoracic',tags:['spine_neutral','frontal'],independenceKey:'posterior:curve:neutral',landmarkIds:spine,multiSegment:true })
-    }
-    if (offsets.length === 2 && offsets.every(v => Math.abs(v)>=CLINICAL_THRESHOLDS.deviazione_spinous_posterior.detection)) {
-      const shape = offsets[0]*offsets[1]<0 ? 'S' : 'C'
-      const dominant=offsets.reduce((a,b)=>Math.abs(a)>Math.abs(b)?a:b)
-      add('post_curve_shape',`Configurazione rachidea fotografica a ${shape}`,dominant*100,'percentuale',{region:'thoracic',tags:['spinal_shape',`shape_${shape}`,'frontal'],shape,independenceKey:'posterior:curve:shape',landmarkIds:spine,multiSegment:true})
-    }
   } else unresolved.push('Polilinea C7–T6–T11–L2 incompleta o corda non valida.')
   const angle=(a:Point2D,b:Point2D)=>Math.atan2((b.x-a.x)*ratio,b.y-a.y)*180/Math.PI
+  if(c7&&l2&&l2.y-c7.y>.02)add('post_chord_tilt','Inclinazione corda C7–L2',angle(c7,l2)*(sign??1),'gradi',{region:'thoracic',tags:['spinal_reference','frontal'],landmarkIds:['cervicale_c7','lombare_l2'],independenceKey:'posterior:chord'})
   for(let i=0;i<spine.length-1;i++) {
     const a=get(spine[i]),b=get(spine[i+1]);if(!a||!b||b.y-a.y<=.005)continue
     add(`post_segment_${i}`,`Inclinazione ${['C7–T6','T6–T11','T11–L2'][i]}`,angle(a,b)*(sign??1),'gradi',{region:i<2?'thoracic':'lumbar',tags:['spinal_segment','frontal'],landmarkIds:[spine[i],spine[i+1]],independenceKey:`posterior:segment:${i}`})
@@ -88,6 +82,26 @@ export function analyzePosterior(landmarks: PlacedLandmark[], options: Posterior
   }
   if(axes.scapular!==undefined&&axes.pelvic!==undefined)add('post_girdle_relation','Rapporto asse scapolare–pelvico',normalizeLineTiltDegrees(axes.scapular-axes.pelvic),'gradi',{region:'scapular',tags:['girdle_relation','frontal',...(axes.scapular*axes.pelvic<0?['girdle_opposition']:[])],landmarkIds:['acromion_post_dx','acromion_post_sx','psis_dx','psis_sx'],independenceKey:'posterior:girdle_relation'})
   if(axes.pelvic!==undefined&&axes.heels!==undefined)add('post_pelvis_heels_angle','Rapporto asse pelvico–bicalcaneare',normalizeLineTiltDegrees(axes.pelvic-axes.heels),'gradi',{region:'pelvic',tags:['distal_relation','frontal'],landmarkIds:['psis_dx','psis_sx','calcagno_dx','calcagno_sx'],independenceKey:'posterior:pelvis_heel_relation'})
+  const curve = computeSpinalCurveEvidence(measurements)
+  if (curve.present) {
+    const rank = { normale:0, lieve:1, moderato:2, severo:3 }
+    for (const m of measurements.filter(m => m.id.startsWith('post_chord_toracico_'))) {
+      m.spinalCurve = curve
+      if (rank[curve.severity] > rank[m.severity]) m.severity = curve.severity
+    }
+    const dominant = offsets.reduce((a,b) => Math.abs(a)>Math.abs(b)?a:b,0)
+    add('post_curve_shape',`Configurazione rachidea fotografica a ${curve.shape}`,dominant*100,'percentuale',{region:'thoracic',tags:['spinal_shape',`shape_${curve.shape}`,'frontal'],shape:curve.shape,independenceKey:'posterior:curve:shape',landmarkIds:spine,multiSegment:true})
+    const summary = measurements[measurements.length-1]
+    summary.severity=curve.severity; summary.spinalCurve=curve
+  } else {
+    if(curve.segmentCount===3) for(const m of measurements.filter(m=>m.id.startsWith('post_chord_')&&m.patternEvidence?.tags.includes('spinal_curve'))) {
+      m.patternEvidence!.tags=m.patternEvidence!.tags.filter(t=>!['spinal_curve','thoracic_curve','thoracolumbar_curve'].includes(t)).concat('spinal_offset')
+      m.clinicalSuggestion=undefined
+    }
+  }
+  if (!curve.present && curve.segmentCount===3 && offsets.length===2 && offsets.every(v=>Math.abs(v)<CLINICAL_THRESHOLDS.deviazione_spinous_posterior.detection) && curve.components.segmentAngle<.75 && curve.components.angularChange<.5) {
+    add('post_spine_neutral','Polilinea entro le soglie fotografiche configurate',0,'percentuale',{region:'thoracic',tags:['spine_neutral','frontal'],independenceKey:'posterior:curve:neutral',landmarkIds:spine,multiSegment:true})
+  } else if(!curve.present) unresolved.push('Curva rachidea: evidenze composite non sufficienti o orientamenti non coerenti.')
   if(axes.cranial===undefined)unresolved.push('Tilt capo non valutabile: mancano landmark cranici bilaterali visibili e confermati.')
   unresolved.push('Rotazione assiale capo non determinabile dalla sola proiezione posteriore: serve un riferimento orientativo clinico indipendente, oltre ai punti cranici bilaterali.')
   return {measurements,unresolvedPotentialPatterns:unresolved}

@@ -164,3 +164,7 @@ Formule, limiti ed esempi: [rete funzionale](functional-network.md).
 Il [riconoscimento regionale e globale](global-pattern-recognition.md) precede
 ora Myers e include il frontale posteriore completo, le firme multiplanari e
 la priorità per regione. Le ipotesi geometriche restano distinte dalle conferme cliniche.
+
+La [corroborazione funzionale](spinal-functional-corroboration.md) trasferisce ora
+i globali da geometrie validate al modello funzionale senza conferme ridondanti,
+consolidando le osservazioni bilaterali e usando uno score rachideo composito.

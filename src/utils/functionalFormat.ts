@@ -15,27 +15,23 @@ export const functionalPercent = (value: number | null) => value === null ? 'non
 export function functionalProvenanceLines(p: FunctionalProvenance): string[] {
   return [`sourceObservationIds: ${p.sourceObservationIds.join('; ') || 'nessuno'}`, `sourceMeasurementIds: ${p.sourceMeasurementIds.join('; ') || 'nessuno'}`, `sourcePatternIds: ${p.sourcePatternIds.join('; ') || 'nessuno'}`]
 }
-export function functionalModelToLines(model: FunctionalModel): string[] {
-  const lines = ['RETE FUNZIONALE / PATTERN GLOBALI', model.methodology, 'LIVELLO 4 — PATTERN LOCALI']
-  for (const local of model.localPatterns) lines.push(`${local.family} — ${local.descriptor ? formatOperatorDirection(local.descriptor, local.direction) : 'operatore non registrato'} · ${FUNCTIONAL_SEGMENT_LABELS[local.segment]} · ${local.side ?? 'lato non specificato'} · Indice locale: ${functionalPercent(local.index)} · Coerenza multiplanare: ${local.planes.length}/3`, ...functionalProvenanceLines(local))
-  lines.push('LIVELLO 5 — CONFRONTO INTERLATERALE / CROCIATO')
-  for (const c of model.comparisons) lines.push(`${c.family}: ${COMPARISON_LABELS[c.relation]}`, ...c.consequences, ...functionalProvenanceLines(c))
-  lines.push('LIVELLO 6 — PATTERN GLOBALI DI TENSEGRITÀ (IPOTESI)')
-  if (!model.globalPatterns.length) lines.push('Nessun pattern globale sufficientemente supportato; nessuna propagazione automatica.')
-  for (const g of model.globalPatterns) lines.push(`${g.kind} · Direzione globale: ${g.direction ?? 'non determinabile'} · Indice globale: ${functionalPercent(g.index)} · Coerenza multiplanare: ${g.planes.length}/3`, `Componenti: ${g.lineIds.map(id => MYOFASCIAL_LINES[id].name).join(', ') || 'da verificare'}`, ...g.consequences, ...functionalProvenanceLines(g))
-  lines.push('BILANCIO DEI BINARI MIOFASCIALI — DISTRIBUZIONE SEGMENTARIA')
-  for (const line of model.lines) {
-    lines.push(`${MYOFASCIAL_LINES[line.lineId].name} · Indice globale: ${functionalPercent(line.globalIndex)} · Direzione: ${line.direction ?? 'non determinabile'} · Copertura: ${line.coverage}% dei segmenti/lati`)
-    for (const segment of line.segments) lines.push(`${FUNCTIONAL_SEGMENT_LABELS[segment.segment]} · ${segment.side} · ${functionalPercent(segment.index)} · Stato: ${segment.state === 'mixed' ? 'misto' : FUNCTIONAL_STATE_LABELS[segment.state]}`, ...functionalProvenanceLines(segment))
-    lines.push(...functionalProvenanceLines(line))
+export function functionalModelToLines(model: FunctionalModel, technical = false): string[] {
+  const evidence = (p:FunctionalProvenance) => technical ? functionalProvenanceLines(p) : []
+  const lines = ['RETE FUNZIONALE / PATTERN GLOBALI', model.methodology, 'PATTERN LOCALI']
+  for (const local of model.localPatterns.filter(p=>technical||p.index!==null&&!!p.direction)) lines.push(`${local.family.replaceAll('_',' ')} — ${local.descriptor ? formatOperatorDirection(local.descriptor, local.direction) : ''} · ${FUNCTIONAL_SEGMENT_LABELS[local.segment]} · Indice locale: ${functionalPercent(local.index)}`, ...evidence(local))
+  lines.push('CONFRONTO INTERLATERALE')
+  for(const c of model.comparisons.filter(c=>technical||c.relation!=='not_comparable'))lines.push(`${c.family.replaceAll('_',' ')}: ${COMPARISON_LABELS[c.relation]}`,...c.consequences,...evidence(c))
+  lines.push('PATTERN GLOBALI FUNZIONALI CORROBORATI')
+  const globals=model.globalPatterns.filter(g=>technical||g.clinicalDirection||g.direction)
+  for(const g of globals)lines.push(`${g.name??'Pattern funzionale integrato'} — ${g.clinicalDirection??g.direction??''} · Indice stimato: ${functionalPercent(g.index)}`,`Componenti Myers: ${g.lineIds.map(id=>MYOFASCIAL_LINES[id].name).join(', ')}`,...g.consequences,...evidence(g))
+  lines.push('BILANCIO MIOFASCIALE')
+  for(const line of model.lines.filter(l=>technical||l.globalIndex!==null)) {
+    lines.push(`${MYOFASCIAL_LINES[line.lineId].name} · Indice globale: ${functionalPercent(line.globalIndex)} · Copertura: ${line.coverage}%`)
+    for(const segment of line.segments.filter(s=>technical||s.index!==null))lines.push(`${FUNCTIONAL_SEGMENT_LABELS[segment.segment]} · ${segment.side==='undetermined'?'':segment.side} · ${functionalPercent(segment.index)}${segment.state!=='undetermined'?` · ${segment.state==='mixed'?'stati misti':FUNCTIONAL_STATE_LABELS[segment.state]}`:''}`,...evidence(segment))
   }
-  lines.push('LIVELLO 3 — STATI FUNZIONALI TESSUTALI PRESUNTI')
-  for (const t of model.tissues) lines.push(`${t.name} · Lato inferito/registrato: ${t.side} · Segmento: ${FUNCTIONAL_SEGMENT_LABELS[t.segment]} · ${FUNCTIONAL_STATE_LABELS[t.state]}`,
-    `Indice locale: ${functionalPercent(t.localIndex)} · Incidenza sul segmento: ${functionalPercent(t.segmentIncidence)} · Incidenza sulla linea globale: ${functionalPercent(t.globalIncidence)}`,
-    `Linee: ${t.lineIds.map(id => MYOFASCIAL_LINES[id].name).join(', ')} · Relazione degli indici controlaterali: ${COMPARISON_LABELS[t.contralateral]}`,
-    `Antagonisti supportati: ${t.antagonistTissueIds.join('; ') || 'non determinabili'}`, ...t.uncertainty, ...t.consequences, ...functionalProvenanceLines(t))
-  lines.push('DISCORDANZE E CONSEGUENZE BIOMECCANICHE PRESUMIBILI')
-  for (const conflict of model.conflicts) lines.push(conflict.message, ...functionalProvenanceLines(conflict))
-  for (const local of model.localPatterns) lines.push(...local.consequences)
+  lines.push('STATI FUNZIONALI TESSUTALI PRESUNTI')
+  for(const t of model.tissues.filter(t=>technical||t.state!=='undetermined'))lines.push(`${t.name} · ${t.side} · ${FUNCTIONAL_SEGMENT_LABELS[t.segment]} · ${FUNCTIONAL_STATE_LABELS[t.state]}`,
+    ...(t.localIndex!==null?[`Indice locale: ${functionalPercent(t.localIndex)}`]:[]),...(t.segmentIncidence!==null?[`Incidenza segmentaria: ${functionalPercent(t.segmentIncidence)}`]:[]),...(t.globalIncidence!==null?[`Incidenza globale: ${functionalPercent(t.globalIncidence)}`]:[]),...t.consequences,...evidence(t))
+  if(technical)for(const c of model.conflicts)lines.push(c.message,...evidence(c))
   return lines
 }

@@ -1,3 +1,5 @@
+import { inferMyersFromFunctionalGlobalPatterns } from './functionalGlobalMyers'
+import { consolidateBilateralObservations } from './bilateralConsolidation'
 import { unique } from './functionalEvidence'
 import { buildMultiplanarGlobalPatterns, globalMyersSupport } from './patternRecognition'
 import { buildFunctionalModel } from './functionalNetworkEngine'
@@ -129,7 +131,7 @@ export function runClinicalPipeline(planes: PlaneAssessment[], measurements: Aut
   const observations = mergeAutomaticObservations([
     ...observationsFromAssessments(planes), ...planes.flatMap(p => (p.observations ?? []).map(o => normalizeTransverseRelation(o, p.plane, o.phenomenon, o.sourceIds))),
   ], observationsFromAutoMeasurements(measurements))
-  const patterns = consolidateObservations(observations)
+  const patterns = consolidateBilateralObservations(consolidateObservations(observations))
   const patternRecognition = buildMultiplanarGlobalPatterns(observations, measurements, patterns)
   const currentTransverse = observationsFromAutoMeasurements(measurements).filter(o => o.plane === 'trasverso')
   const matchesCurrent = (p: PosturalPattern) => currentTransverse.some(o => o.phenomenon === p.phenomenon && o.side === p.side && o.descriptor === p.descriptor && o.transverseRelation?.reference === p.transverseRelation?.reference && (o.transverseRelation?.referenceSide ?? (o.side === 'destro' ? 'dx' : o.side === 'sinistro' ? 'sx' : o.side)) === (p.transverseRelation?.referenceSide ?? (p.side === 'destro' ? 'dx' : p.side === 'sinistro' ? 'sx' : p.side)) && o.quantitative?.value === p.quantitative?.value)
@@ -156,11 +158,17 @@ export function runClinicalPipeline(planes: PlaneAssessment[], measurements: Aut
   const tissues = consolidateTissueEvidence(supportedTissueEvidence(patterns, inferences))
   const consolidatedPlanes = planes.map(pa => ({ plane: pa.plane, alterations: patterns.filter(p => p.plane === pa.plane).map(patternSelection) }))
   const myersPlanes = planes.map(pa => ({ plane: pa.plane, alterations: patterns.filter(p => p.plane === pa.plane && supported(p)).map(p => ({ ...patternSelection(p), myersContext: contexts.get(p.id) })) }))
-  const functionalModel = buildFunctionalModel(observations, patterns, tissues, inferences, measurements)
-  return { observations, patterns, inferences, tissues, consolidatedPlanes, myersPlanes, functionalModel, patternRecognition }
+  const functionalModel = buildFunctionalModel(observations, patterns, tissues, inferences, measurements, patternRecognition)
+  const functionalGlobalInferences = inferMyersFromFunctionalGlobalPatterns(functionalModel.globalPatterns)
+  return { observations, patterns, inferences, tissues, consolidatedPlanes, myersPlanes, functionalModel, patternRecognition, functionalGlobalInferences }
 }
 
 export function formatPattern(p: PosturalPattern): string {
+  if (p.bilateral) {
+    const name=p.phenomenon==='anteriorizzazione_capo'?'Anteriorizzazione cefalica':p.phenomenon.replaceAll('_',' ')
+    const values=[p.bilateral.right&&`DX ${p.bilateral.right.value} ${p.bilateral.right.unit}`,p.bilateral.left&&`SX ${p.bilateral.left.value} ${p.bilateral.left.unit}`].filter(Boolean).join(' · ')
+    return `${name} bilaterale${p.bilateral.dominantSide?` con prevalenza ${p.bilateral.dominantSide==='destro'?'DX':'SX'}`:p.bilateral.classification==='symmetric'?' simmetrica':''} — ${p.descriptor??''} · ${values}`
+  }
   if (p.plane === 'trasverso' && isTransverseRelation(p.descriptor)) {
     const relation = normalizeTransverseRelation(p, p.plane, p.phenomenon, p.observationIds).transverseRelation!
     return [formatTransverseRelation(relation, p.quantitative), p.severity, p.notes].filter(Boolean).join(' · ')
@@ -192,6 +200,11 @@ export function applyClinicalEdit(a: AlterationSelection, patch: Partial<Alterat
 
 /** Mantiene le osservazioni sorgente, evitando di ripetere gli alias nella presentazione. */
 export function observationSummaries(observations: ClinicalObservation[]): string[] {
+  const bilateral = consolidateBilateralObservations(consolidateObservations(observations)).filter(p=>p.bilateral)
+  const merged = new Set(bilateral.flatMap(p=>p.observationIds))
+  return [...bilateral.map(formatPattern), ...legacyObservationSummaries(observations.filter(o=>!merged.has(o.id)))]
+}
+function legacyObservationSummaries(observations: ClinicalObservation[]): string[] {
   return [...new Set(observations.filter(o => o.status !== 'excluded' && o.status !== 'suggested').map(o =>
     o.plane === 'trasverso' && o.transverseRelation ? `${formatTransverseRelation(o.transverseRelation, o.quantitative)} · ${o.severity ?? 'grado indeterminato'}` : `${o.plane.replaceAll('_', ' ')}: ${canonicalPhenomenon(o.phenomenon).replaceAll('_', ' ')} · ${isSpinalPhenomenon(o.phenomenon) ? 'rachide' : o.side ?? 'lato indeterminato'} · ${formatOperatorDirection(observationDescriptor(o.phenomenon, o.plane, o.descriptor), o.direction)} · ${o.severity ?? 'grado indeterminato'}${o.quantitative ? ` · ${o.quantitative.value} ${o.quantitative.unit}` : ''}`,
   ))]
@@ -229,6 +242,6 @@ export function clinicalReportPipeline(pipeline: ReturnType<typeof runClinicalPi
   return { ...pipeline, observations, patterns, inferences, tissues,
     consolidatedPlanes: pipeline.consolidatedPlanes.map(pa => ({ ...pa, alterations: pa.alterations.filter(a => ids.has(a.instanceId)) })),
     myersPlanes: pipeline.myersPlanes.map(pa => ({ ...pa, alterations: pa.alterations.filter(a => ids.has(a.instanceId)) })),
-    functionalModel: buildFunctionalModel(observations, patterns, tissues, inferences, measurements),
+    functionalModel: buildFunctionalModel(observations, patterns, tissues, inferences, measurements, pipeline.patternRecognition),
   }
 }

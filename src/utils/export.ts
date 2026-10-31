@@ -136,6 +136,7 @@ export function buildTextReportLines(assessment: Assessment): string[] | null {
     header.push(...observationSummaries(pipeline.observations))
     header.push('C. PATTERN CONSOLIDATI', ...pipeline.patterns.map(formatPattern))
     header.push('D. IPOTESI MYOFASCIALI', ...(pipeline.inferences ? formatMyersEvidence(pipeline.patterns, pipeline.inferences) : report.alteredMeridians.map(m => `${MYOFASCIAL_LINES[m.lineId].name} (${m.prevalentSide})`)))
+    if (pipeline.functionalGlobalInferences?.length) header.push('MYERS DA PATTERN GLOBALI FUNZIONALI', ...formatMyersEvidence([],pipeline.functionalGlobalInferences))
     if (pipeline.patternRecognition) header.push(...recognizedPatternReportLines(pipeline.patternRecognition))
     if (pipeline.functionalModel) header.push(...functionalModelToLines(pipeline.functionalModel))
     else header.push('E. TESSUTI CORRELATI')

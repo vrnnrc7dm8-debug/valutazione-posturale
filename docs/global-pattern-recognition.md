@@ -1,5 +1,9 @@
 # Riconoscimento regionale e globale multiplanare
 
+Aggiornamento: le soglie composite, il consolidamento bilaterale e il gate funzionale
+attuali sono descritti in [corroborazione funzionale](spinal-functional-corroboration.md).
+Le regole di conferma e le soglie riportate sotto descrivono la fase precedente.
+
 ## Problema e architettura
 
 Il frontale posteriore usava dislivelli PSIS, scapole solo con quattro landmark
