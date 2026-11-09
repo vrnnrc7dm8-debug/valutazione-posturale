@@ -208,6 +208,7 @@ function PhotoAnnotationEditorInner({
     'idle',
   )
   const [clinicalPanelOpen, setClinicalPanelOpen] = useState(true)
+  const windowMinimized = useRef(false)
   const [showAiProposals, setShowAiProposals] = useState(true)
   const [synthposeDebug, setSynthposeDebug] = useState<SynthposeResult | null>(null)
   const [landmarkToolsOpen, setLandmarkToolsOpen] = useState(false)
@@ -308,6 +309,7 @@ function PhotoAnnotationEditorInner({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (windowMinimized.current) return
       const mod = e.metaKey || e.ctrlKey
       if (!mod) return
       if (e.key === 'z' && !e.shiftKey) {
@@ -404,6 +406,7 @@ function PhotoAnnotationEditorInner({
     }
 
     const tick = () => {
+      if (windowMinimized.current) pressed.clear()
       if (pressed.size === 0) {
         rafId = null
         return
@@ -447,6 +450,7 @@ function PhotoAnnotationEditorInner({
     }
 
     const onKeyDown = (e: KeyboardEvent) => {
+      if (windowMinimized.current) return
       syncModifiers(e)
       if (!ARROW_PAN_KEYS.has(e.key)) return
       if (isArrowPanBlockedTarget(e.target)) return
@@ -457,6 +461,7 @@ function PhotoAnnotationEditorInner({
     }
 
     const onKeyUp = (e: KeyboardEvent) => {
+      if (windowMinimized.current || !pressed.has(e.key)) return
       syncModifiers(e)
       if (ARROW_PAN_KEYS.has(e.key)) {
         pressed.delete(e.key)
@@ -894,6 +899,7 @@ function PhotoAnnotationEditorInner({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (windowMinimized.current) return
       if (e.key !== 'Delete' && e.key !== 'Backspace') return
       if (!selectedLmId || panImageMode || !landmarkDragEnabled) return
       const target = e.target as HTMLElement | null
@@ -1046,6 +1052,7 @@ function PhotoAnnotationEditorInner({
 
   return (
     <ResizableDraggableModal
+      onMinimizedChange={value => { windowMinimized.current = value }}
       title="Annotazione e analisi clinica"
       subtitle={`${planeLabel} · ${planeConfig.shortLabel}`}
       onClose={handleClose}
@@ -1072,7 +1079,7 @@ function PhotoAnnotationEditorInner({
       }
     >
       <div className="flex h-full min-h-0 flex-col">
-        <div className="flex flex-wrap items-end gap-2 border-b bg-clinical-50 px-4 py-2">
+        <div className="sticky top-0 z-40 flex shrink-0 flex-wrap items-end gap-2 border-b bg-clinical-50 px-4 py-2">
           <Button
             type="button"
             size="sm"
@@ -1333,10 +1340,13 @@ function PhotoAnnotationEditorInner({
             size="sm"
             variant={clinicalPanelOpen ? 'default' : 'outline'}
             className="ml-auto"
+            aria-expanded={clinicalPanelOpen}
+            aria-label={clinicalPanelOpen ? 'Nascondi pannello' : 'Mostra pannello'}
+            title={clinicalPanelOpen ? 'Nascondi pannello' : 'Mostra pannello'}
             onClick={() => setClinicalPanelOpen((o) => !o)}
           >
             <ClipboardList className="h-4 w-4" />
-            Alterazioni / Analisi
+            {clinicalPanelOpen ? '‹ Nascondi pannello' : '› Mostra pannello'}
           </Button>
         </div>
 
@@ -1359,12 +1369,12 @@ function PhotoAnnotationEditorInner({
           <span className="text-[11px] opacity-90">{instructionText}</span>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <div className="flex min-h-[300px] flex-1 flex-row max-sm:flex-col">
           <div
             ref={containerRef}
             tabIndex={-1}
             className={cn(
-              'relative min-h-[300px] flex-1 overflow-hidden bg-slate-900 outline-none lg:min-h-0',
+              'relative min-h-[300px] flex-1 overflow-hidden bg-slate-900 outline-none min-w-[240px]',
               canvasCursorClass,
             )}
             title={activeMode.tooltip}
@@ -1671,8 +1681,7 @@ function PhotoAnnotationEditorInner({
             )}
           </div>
 
-          {clinicalPanelOpen && (
-            <aside className="flex w-full min-h-0 max-h-[min(100%,720px)] shrink-0 flex-col border-t border-slate-200 lg:max-h-none lg:w-80 lg:border-t-0 lg:border-l xl:w-96">
+          <aside hidden={!clinicalPanelOpen} style={{ display: clinicalPanelOpen ? undefined : 'none' }} className="overflow-y-auto flex w-72 max-sm:w-full max-sm:max-h-64 min-h-0 shrink-0 flex-col border-l border-slate-200">
               <SynthPosePanel image={imageUrl} plane={plane} collection={annotations.landmarks}
                 visible={showAiProposals} onVisibleChange={setShowAiProposals} onDebug={setSynthposeDebug}
                 onProposals={proposals => commitWithHistory({ ...annotationsRef.current, landmarks: mergeSynthposeProposals(annotationsRef.current.landmarks, proposals) })}
@@ -1732,7 +1741,6 @@ function PhotoAnnotationEditorInner({
                 spostano immagine
               </p>
             </aside>
-          )}
         </div>
       </div>
     </ResizableDraggableModal>
